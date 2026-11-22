@@ -979,9 +979,12 @@ export function PresenterConsole() {
   const handleLoadSampleDeck = useCallback(async () => {
     setErrorMessage(null);
     try {
+      const baseUrl = import.meta.env.BASE_URL.endsWith('/')
+        ? import.meta.env.BASE_URL
+        : `${import.meta.env.BASE_URL}/`;
       const [pdfRes, notesRes] = await Promise.all([
-        fetch('/sample-deck.pdf'),
-        fetch('/sample-notes.md').catch(() => null),
+        fetch(`${baseUrl}sample-deck.pdf`),
+        fetch(`${baseUrl}sample-notes.md`).catch(() => null),
       ]);
       if (!pdfRes.ok) {
         throw new Error(`HTTP ${pdfRes.status}`);

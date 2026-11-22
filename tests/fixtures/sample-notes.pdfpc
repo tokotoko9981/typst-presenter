@@ -1,0 +1,58 @@
+{
+  "pdfpcFormat": 2,
+  "disableMarkdown": false,
+  "duration": 15,
+  "lastMinutes": 3,
+  "noteFontSize": 18,
+  "endSlide": 5,
+  "pages": [
+    {
+      "idx": 0,
+      "label": "1",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 1\npdfpcノート1：全体時間15分・残り3分警告で開始する。"
+    },
+    {
+      "idx": 1,
+      "label": "2",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 2\npdfpcノート2：内部リンクと外部URL参照のデモ。"
+    },
+    {
+      "idx": 2,
+      "label": "3",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 3\npdfpcノート3：数式 $E = mc^2$ と日本語組版。"
+    },
+    {
+      "idx": 3,
+      "label": "4",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 4\npdfpcノート4：アーキテクチャ表の解説。"
+    },
+    {
+      "idx": 4,
+      "label": "5",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 5\npdfpcノート5：リロード回復テストの説明。"
+    },
+    {
+      "idx": 5,
+      "label": "6",
+      "overlay": 0,
+      "forcedOverlay": false,
+      "hidden": false,
+      "note": "## pdfpc Slide 6\npdfpcノート6：まとめとQ&A。"
+    }
+  ]
+}

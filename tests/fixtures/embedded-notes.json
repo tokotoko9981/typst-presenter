@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "deckId": "presio-attached-deck",
+  "fileName": "presio-attached-deck.pdf",
+  "globalTargetSeconds": 180,
+  "lastMinutesWarning": 1,
+  "noteFontSizePx": 16,
+  "slides": {
+    "1": {
+      "markdown": "## Embedded Slide 1 Note\n埋め込みノート1：Presio `#pdf.attach` からの自動抽出確認。",
+      "targetSeconds": 60,
+      "updatedAt": 1700000000000
+    },
+    "2": {
+      "markdown": "## Embedded Slide 2 Note\n埋め込みノート2：Check **Markdown** bold & `inline code` rendering.",
+      "targetSeconds": 60,
+      "updatedAt": 1700000000000
+    },
+    "3": {
+      "markdown": "## Embedded Slide 3 Note\n埋め込みノート3：最終スライドの質疑応答メモ。",
+      "targetSeconds": 60,
+      "updatedAt": 1700000000000
+    }
+  }
+}

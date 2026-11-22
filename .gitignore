@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.vite/
+public/pdfjs/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+*.tsbuildinfo
+src-tauri/target/
+src-tauri/gen/

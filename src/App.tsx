@@ -1,0 +1,33 @@
+import { useEffect, useState } from 'react';
+import { AudienceView } from './features/audience/AudienceView.tsx';
+import { PresenterConsole } from './features/presenter/PresenterConsole.tsx';
+
+type AppRoute = 'presenter' | 'audience';
+
+function resolveRoute(hash: string): AppRoute {
+  const pathPart = hash.replace(/^#/, '').split('?')[0] ?? '/';
+  if (pathPart === '/audience' || pathPart.startsWith('/audience/')) {
+    return 'audience';
+  }
+  return 'presenter';
+}
+
+export function App() {
+  const [route, setRoute] = useState<AppRoute>(() => resolveRoute(window.location.hash));
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setRoute(resolveRoute(window.location.hash));
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  if (route === 'audience') {
+    return <AudienceView />;
+  }
+
+  return <PresenterConsole />;
+}
+
+export default App;

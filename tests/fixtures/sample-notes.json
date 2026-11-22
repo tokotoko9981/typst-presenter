@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "deckId": "standard-deck-sample",
+  "fileName": "standard-deck.pdf",
+  "globalTargetSeconds": 600,
+  "lastMinutesWarning": 2,
+  "noteFontSizePx": 18,
+  "slides": {
+    "1": {
+      "markdown": "## JSON Slide 1\nJSONノート1：導入トークの要点を確認する。",
+      "targetSeconds": 90,
+      "updatedAt": 1700000000000
+    },
+    "2": {
+      "markdown": "## JSON Slide 2\nJSONノート2：リンク機能と全体構成を説明する。",
+      "targetSeconds": 90,
+      "updatedAt": 1700000000000
+    },
+    "3": {
+      "markdown": "## JSON Slide 3\nJSONノート3：数式組版とCJKフォントの品質を示す。",
+      "targetSeconds": 120,
+      "updatedAt": 1700000000000
+    },
+    "4": {
+      "markdown": "## JSON Slide 4\nJSONノート4：**Presenter Console** と **Audience Display** の役割分担。",
+      "targetSeconds": 120,
+      "updatedAt": 1700000000000
+    },
+    "5": {
+      "markdown": "## JSON Slide 5\nJSONノート5：`IndexedDB` LRUキャッシュと `F5` 再接続。",
+      "targetSeconds": 90,
+      "updatedAt": 1700000000000
+    },
+    "6": {
+      "markdown": "## JSON Slide 6\nJSONノート6：クロージングと質疑応答案内。",
+      "targetSeconds": 90,
+      "updatedAt": 1700000000000
+    }
+  }
+}

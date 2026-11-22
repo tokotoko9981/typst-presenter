@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "pdfjs-dist/web/pdf_viewer.css";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

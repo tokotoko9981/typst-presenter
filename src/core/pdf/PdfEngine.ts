@@ -404,6 +404,9 @@ export class PdfEngine {
       assertCurrentGeneration();
 
       const numPages = localDoc.numPages;
+      if (!Number.isInteger(numPages) || numPages < 1) {
+        throw new Error('PdfEngine: PDF document contains 0 pages.');
+      }
       const pageLabels = normalizePageLabels(await localDoc.getPageLabels().catch(() => null));
       assertCurrentGeneration();
 

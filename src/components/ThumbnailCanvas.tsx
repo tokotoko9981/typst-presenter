@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PdfEngine } from '../core/pdf/PdfEngine.ts';
 import type { CropRegion } from '../core/pdf/types.ts';
 
@@ -26,6 +26,39 @@ export function ThumbnailCanvas({
   onClick,
 }: ThumbnailCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [boxSize, setBoxSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const parent = canvasRef.current?.parentElement;
+    if (!parent) return;
+
+    const measure = () => {
+      const rect = parent.getBoundingClientRect();
+      const w = Math.floor(rect.width || parent.clientWidth || 0);
+      const h = Math.floor(rect.height || parent.clientHeight || 0);
+      if (w > 24 && h > 24) {
+        const nextW = Math.max(48, w - 4);
+        const nextH = Math.max(48, h - 4);
+        setBoxSize((prev) =>
+          prev && prev.width === nextW && prev.height === nextH
+            ? prev
+            : { width: nextW, height: nextH },
+        );
+      }
+    };
+
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => measure());
+      ro.observe(parent);
+      return () => ro.disconnect();
+    }
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  const renderTargetWidth = boxSize ? boxSize.width : targetWidth;
+  const renderTargetHeight = boxSize ? boxSize.height : targetHeight;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -38,11 +71,16 @@ export function ThumbnailCanvas({
 
     void engine
       .renderPageToCanvas(pageNumber, canvas, {
-        targetWidth,
-        targetHeight,
+        targetWidth: renderTargetWidth,
+        targetHeight: renderTargetHeight,
         dpr,
         cropRegion,
         signal: controller.signal,
+      })
+      .then((res) => {
+        if (res && !controller.signal.aborted) {
+          canvas.style.aspectRatio = `${res.cssWidth} / ${res.cssHeight}`;
+        }
       })
       .catch(() => {
         // Ignore cancelled render
@@ -51,7 +89,7 @@ export function ThumbnailCanvas({
     return () => {
       controller.abort();
     };
-  }, [engine, deckId, pageNumber, cropRegion, targetWidth, targetHeight]);
+  }, [engine, deckId, pageNumber, cropRegion, renderTargetWidth, renderTargetHeight]);
 
   return (
     <canvas
@@ -59,7 +97,7 @@ export function ThumbnailCanvas({
       data-testid={testId}
       aria-label={ariaLabel}
       onClick={onClick}
-      className="block max-h-full max-w-full cursor-pointer rounded shadow"
+      className="block max-h-full max-w-full shrink-0 cursor-pointer rounded shadow"
     />
   );
 }

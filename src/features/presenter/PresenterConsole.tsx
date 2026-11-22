@@ -8,6 +8,7 @@ import {
   pickPdfFileHandle,
 } from '../../core/files/FileWatchService.ts';
 import type { WatchStatus } from '../../core/files/FileWatchService.ts';
+import { useI18n } from '../../core/i18n/I18nContext.tsx';
 import {
   createEmptyNotesBundle,
   exportNotesToJson,
@@ -52,6 +53,8 @@ import {
   formatDurationMMSS,
   parseValidHHMM,
 } from '../../core/timer/TimerEngine.ts';
+import { HelpModal, type HelpModalTab } from './HelpModal.tsx';
+import { NotesImportModal } from './NotesImportModal.tsx';
 import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
 
 function getOrCreateSessionId(): string {
@@ -119,6 +122,7 @@ function formatWallClock(nowMs: number): string {
 }
 
 export function PresenterConsole() {
+  const { locale, toggleLocale, t } = useI18n();
   const [sessionId] = useState<string>(() => getOrCreateSessionId());
   const engineRef = useRef<PdfEngine | null>(null);
   const syncBridgeRef = useRef<SyncBridge | null>(null);
@@ -203,9 +207,10 @@ export function PresenterConsole() {
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
 
   // Modals / Drawers state
-  const [activeModal, setActiveModal] = useState<'none' | 'grid' | 'outline' | 'help' | 'stats'>(
-    'none',
-  );
+  const [activeModal, setActiveModal] = useState<
+    'none' | 'grid' | 'outline' | 'help' | 'stats' | 'notes-import'
+  >('none');
+  const [helpInitialTab, setHelpInitialTab] = useState<HelpModalTab>('shortcuts');
 
   // Keep latest state in refs for async / SyncBridge / FileWatch callbacks
   const notesBundleRef = useRef<DeckNotesBundle | null>(notesBundle);
@@ -549,8 +554,31 @@ export function PresenterConsole() {
       sidecarName: string,
       targetDeckId: string,
       targetFileName: string,
+      totalDeckPages?: number,
     ): Promise<DeckNotesBundle> => {
       const parsed = parseSidecarFileContent(text, sidecarName);
+      const slideNums = Object.keys(parsed.slides)
+        .map((k) => Number.parseInt(k, 10))
+        .filter((n) => Number.isInteger(n) && n >= 1);
+      const hasMeta =
+        parsed.durationMinutes !== undefined ||
+        parsed.lastMinutesWarning !== undefined ||
+        parsed.noteFontSizePx !== undefined ||
+        parsed.endTimeHHMM !== undefined;
+
+      if (slideNums.length === 0 && !hasMeta) {
+        const fallbackBundle =
+          notesBundleRef.current ??
+          createEmptyNotesBundle(
+            targetDeckId,
+            targetFileName,
+            stateRef.current.meta?.extractedNotes,
+            stateRef.current.meta?.extractedPdfpcConfig,
+          );
+        setErrorMessage(`${t.msgSidecarNoNotesFound} (${sidecarName})`);
+        return fallbackBundle;
+      }
+
       const effectiveDuration =
         parsed.durationMinutes ?? deriveDurationMinutesFromSlides(parsed.slides);
       const nextDuration = effectiveDuration ?? countdownMinutes;
@@ -596,9 +624,25 @@ export function PresenterConsole() {
       };
       setNotesBundle(updatedBundle);
       await storageService.saveNotes(updatedBundle);
+
+      if (slideNums.length > 0) {
+        const maxSlideNum = Math.max(...slideNums);
+        const exceedMsg =
+          totalDeckPages !== undefined && maxSlideNum > totalDeckPages
+            ? locale === 'ja'
+              ? `（注意: PDF のページ数 ${totalDeckPages} を超えるノート ${maxSlideNum} が含まれています）`
+              : ` (note: includes slide ${maxSlideNum}, which exceeds PDF page count ${totalDeckPages}).`
+            : '';
+        setInfoMessage(
+          locale === 'ja'
+            ? `${sidecarName} から ${slideNums.length} スライド分のノートを取り込みました${exceedMsg}`
+            : `Imported notes for ${slideNums.length} slide(s) from "${sidecarName}"${exceedMsg}`,
+        );
+      }
+
       return updatedBundle;
     },
-    [countdownMinutes, lastMinutesWarning, noteFontSizePx, endTimeHHMM],
+    [countdownMinutes, lastMinutesWarning, noteFontSizePx, endTimeHHMM, locale, t],
   );
 
   // Load a PDF from ArrayBuffer
@@ -612,7 +656,7 @@ export function PresenterConsole() {
       setInfoMessage(null);
 
       if (!bytes || bytes.byteLength === 0) {
-        setErrorMessage('Error: Invalid or empty PDF file (0 bytes).');
+        setErrorMessage(t.msgEmptyPdf);
         return;
       }
 
@@ -620,6 +664,8 @@ export function PresenterConsole() {
         const clonedForStorage = bytes.slice(0);
         const loadedMeta = await engineRef.current!.loadDeck(bytes, fileName);
 
+        notesBundleRef.current = null;
+        setNotesBundle(null);
         setMeta(loadedMeta);
         setCurrentPage(1);
         setJumpInputText('1');
@@ -645,24 +691,38 @@ export function PresenterConsole() {
         await refreshRecentDecks();
 
         let bundle = await storageService.getNotes(loadedMeta.deckId);
+        let applyDefaultMetadata = !pairedSidecar;
+
         if (pairedSidecar) {
-          bundle = await applySidecarContent(
-            pairedSidecar.text,
-            pairedSidecar.name,
-            loadedMeta.deckId,
-            loadedMeta.fileName,
-          );
-        } else if (!bundle) {
-          bundle = createEmptyNotesBundle(
-            loadedMeta.deckId,
-            loadedMeta.fileName,
-            loadedMeta.extractedNotes,
-            loadedMeta.extractedPdfpcConfig,
-          );
-          await storageService.saveNotes(bundle);
+          try {
+            bundle = await applySidecarContent(
+              pairedSidecar.text,
+              pairedSidecar.name,
+              loadedMeta.deckId,
+              loadedMeta.fileName,
+              loadedMeta.numPages,
+            );
+          } catch (sidecarErr) {
+            applyDefaultMetadata = true;
+            setErrorMessage(
+              `Error: PDF loaded, but failed to parse sidecar "${pairedSidecar.name}" (${
+                sidecarErr instanceof Error ? sidecarErr.message : String(sidecarErr)
+              }).`,
+            );
+          }
         }
 
-        if (!pairedSidecar) {
+        if (applyDefaultMetadata) {
+          if (!bundle) {
+            bundle = createEmptyNotesBundle(
+              loadedMeta.deckId,
+              loadedMeta.fileName,
+              loadedMeta.extractedNotes,
+              loadedMeta.extractedPdfpcConfig,
+            );
+            await storageService.saveNotes(bundle);
+          }
+
           const derivedFromSlides = deriveDurationMinutesFromSlides(bundle.slides);
           const embeddedOrDerivedDuration =
             loadedMeta.extractedPdfpcConfig?.durationMinutes ??
@@ -708,7 +768,7 @@ export function PresenterConsole() {
         );
       }
     },
-    [applySidecarContent, refreshRecentDecks],
+    [applySidecarContent, refreshRecentDecks, t.msgEmptyPdf],
   );
 
   const hotReloadPdfBytes = useCallback(
@@ -819,7 +879,7 @@ export function PresenterConsole() {
     if (watcher.getPdfStatus().active) {
       watcher.stopPdfWatch();
       setPdfWatchStatus(watcher.getPdfStatus());
-      setInfoMessage('Stopped watching PDF file.');
+      setInfoMessage(t.msgWatchStopped);
       return;
     }
 
@@ -865,7 +925,7 @@ export function PresenterConsole() {
       setInfoMessage(null);
       const record = await storageService.getDeck(deckId);
       if (!record || !record.bytes || record.bytes.byteLength === 0) {
-        setErrorMessage('Error: Stored deck is no longer available.');
+        setErrorMessage(t.msgStoredDeckMissing);
         await refreshRecentDecks();
         return;
       }
@@ -1015,28 +1075,36 @@ export function PresenterConsole() {
     await ingestPdfBytes(buf, file.name);
   };
 
+  const handleSidecarFile = useCallback(
+    async (file: File) => {
+      setErrorMessage(null);
+      setInfoMessage(null);
+
+      try {
+        const text = await file.text();
+        await applySidecarContent(
+          text,
+          file.name,
+          meta?.deckId ?? 'unloaded-deck',
+          meta?.fileName ?? 'deck.pdf',
+          meta?.numPages,
+        );
+      } catch (err) {
+        setErrorMessage(
+          `Error: Failed to parse sidecar file "${file.name}" (${
+            err instanceof Error ? err.message : String(err)
+          }).`,
+        );
+      }
+    },
+    [applySidecarContent, meta],
+  );
+
   const handleSidecarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    setErrorMessage(null);
-    setInfoMessage(null);
-
-    try {
-      const text = await file.text();
-      await applySidecarContent(
-        text,
-        file.name,
-        meta?.deckId ?? 'unloaded-deck',
-        meta?.fileName ?? 'deck.pdf',
-      );
-    } catch (err) {
-      setErrorMessage(
-        `Error: Failed to parse sidecar file "${file.name}" (${
-          err instanceof Error ? err.message : String(err)
-        }).`,
-      );
-    }
+    await handleSidecarFile(file);
   };
 
   const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
@@ -1067,18 +1135,13 @@ export function PresenterConsole() {
           : undefined,
       );
     } else if (sidecarFile && meta) {
-      setErrorMessage(null);
+      await handleSidecarFile(sidecarFile);
+    } else if (sidecarFile && !meta) {
       setInfoMessage(null);
-      try {
-        const text = await sidecarFile.text();
-        await applySidecarContent(text, sidecarFile.name, meta.deckId, meta.fileName);
-      } catch (err) {
-        setErrorMessage(
-          `Error: Invalid notes file "${sidecarFile.name}" (${
-            err instanceof Error ? err.message : String(err)
-          }).`,
-        );
-      }
+      setErrorMessage(t.msgNotesNeedPdfFirst);
+    } else {
+      setInfoMessage(null);
+      setErrorMessage(t.msgUnsupportedDrop);
     }
   };
 
@@ -1097,7 +1160,7 @@ export function PresenterConsole() {
       setPopupBlockedUrl(null);
       setTimeout(() => broadcastStateSnapshot(), 150);
     } else {
-      setErrorMessage('Error: Failed to open Audience display window.');
+      setErrorMessage(t.msgAudienceOpenFailed);
     }
   };
 
@@ -1347,7 +1410,7 @@ export function PresenterConsole() {
     if (!meta) return;
     const extractedEntries = Object.entries(meta.extractedNotes ?? {});
     if (extractedEntries.length === 0) {
-      setInfoMessage('No embedded notes found in this PDF (埋め込みノートが見つかりません).');
+      setInfoMessage(t.msgNoEmbeddedNotes);
       return;
     }
     const freshBundle = createEmptyNotesBundle(
@@ -1358,7 +1421,11 @@ export function PresenterConsole() {
     );
     setNotesBundle(freshBundle);
     await storageService.saveNotes(freshBundle);
-    setInfoMessage(`Imported embedded notes for ${extractedEntries.length} slide(s).`);
+    setInfoMessage(
+      locale === 'ja'
+        ? `${extractedEntries.length} スライド分の埋め込みノートを取り込みました。`
+        : `Imported embedded notes for ${extractedEntries.length} slide(s).`,
+    );
   };
 
   const handleExportNotes = (format: 'md' | 'json' | 'pdfpc') => {
@@ -1415,10 +1482,12 @@ export function PresenterConsole() {
       setNotesBundle(updatedBundle);
       await storageService.saveNotes(updatedBundle);
       setInfoMessage(
-        `Applied actual rehearsal times as slide targets for ${appliedCount} slide(s).`,
+        locale === 'ja'
+          ? `${appliedCount} スライド分の実測時間を目標時間へ反映しました。`
+          : `Applied actual rehearsal times as slide targets for ${appliedCount} slide(s).`,
       );
     },
-    [meta, notesBundle],
+    [meta, notesBundle, locale],
   );
 
   // Focus-safe global keyboard shortcuts
@@ -1597,6 +1666,7 @@ export function PresenterConsole() {
         }
         case '?': {
           e.preventDefault();
+          setHelpInitialTab('shortcuts');
           setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
           break;
         }
@@ -1748,7 +1818,7 @@ export function PresenterConsole() {
           style={{ paddingLeft: `${12 + depth * 16}px` }}
           className="flex w-full items-center justify-between rounded py-1.5 pr-3 text-left text-sm text-slate-200 hover:bg-slate-800"
         >
-          <span className="truncate">{node.title || 'Untitled section'}</span>
+          <span className="truncate">{node.title || t.untitledSection}</span>
           {node.pageNumber && (
             <span className="ml-2 shrink-0 text-xs text-slate-400">p.{node.pageNumber}</span>
           )}
@@ -1793,14 +1863,14 @@ export function PresenterConsole() {
         className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2 text-xs"
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-bold tracking-tight text-white">Typst Presenter</span>
+          <span className="text-sm font-bold tracking-tight text-white">{t.appTitle}</span>
 
           <button
             type="button"
             onClick={() => pdfFileInputRef.current?.click()}
             className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
           >
-            Open PDF
+            {t.openPdf}
           </button>
 
           <button
@@ -1808,7 +1878,7 @@ export function PresenterConsole() {
             onClick={handleLoadSampleDeck}
             className="rounded bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-500"
           >
-            Load Sample Deck
+            {t.loadSampleDeck}
           </button>
 
           {meta && (
@@ -1818,7 +1888,7 @@ export function PresenterConsole() {
               onClick={() => void handleCloseDeck()}
               className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
             >
-              Recent Decks
+              {t.recentDecksBtn}
             </button>
           )}
 
@@ -1835,8 +1905,8 @@ export function PresenterConsole() {
               }`}
             >
               {pdfWatchStatus.active
-                ? `Stop Watch (${pdfWatchStatus.fileName ?? 'PDF'})`
-                : 'Watch PDF'}
+                ? `${t.stopWatch} (${pdfWatchStatus.fileName ?? 'PDF'})`
+                : t.watchPdf}
             </button>
           )}
 
@@ -1852,11 +1922,11 @@ export function PresenterConsole() {
               className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-slate-200"
             >
               {monitors.length === 0 ? (
-                <option value="">Default Display</option>
+                <option value="">{t.defaultDisplay}</option>
               ) : (
                 monitors.map((m) => (
                   <option key={m.index} value={m.index}>
-                    {m.name} ({m.width}x{m.height}){m.isPrimary ? ' [Primary]' : ''}
+                    {m.name} ({m.width}x{m.height}){m.isPrimary ? ` ${t.primaryTag}` : ''}
                   </option>
                 ))
               )}
@@ -1867,12 +1937,12 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="refresh-monitors-button"
-              aria-label="Refresh displays"
-              title="Refresh displays"
+              aria-label={t.refreshDisplaysAria}
+              title={t.refreshDisplaysAria}
               onClick={() => void refreshMonitors()}
               className="rounded bg-slate-800 px-2 py-1 font-medium text-slate-200 hover:bg-slate-700"
             >
-              Displays
+              {t.displaysBtn}
             </button>
           )}
 
@@ -1881,18 +1951,18 @@ export function PresenterConsole() {
             onClick={() => void handleLaunchAudienceWindow()}
             className="rounded bg-emerald-600 px-2.5 py-1 font-medium text-white hover:bg-emerald-500"
           >
-            Launch Audience Window
+            {t.launchAudienceWindow}
           </button>
 
           <span
             data-testid="audience-status"
-            className={`inline-block min-w-[140px] rounded px-2 py-0.5 text-center text-[11px] font-medium ${
+            className={`inline-block min-w-[146px] rounded px-2 py-0.5 text-center text-[11px] font-medium ${
               audienceConnected
                 ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50'
                 : 'bg-slate-800 text-slate-400 border border-slate-700'
             }`}
           >
-            {audienceConnected ? 'Audience Connected' : 'Audience Disconnected'}
+            {audienceConnected ? t.audienceConnected : t.audienceDisconnected}
           </span>
         </div>
 
@@ -1905,7 +1975,7 @@ export function PresenterConsole() {
               onClick={() => navigateToSlide(currentPage - 1)}
               className="rounded bg-slate-800 px-2 py-1 hover:bg-slate-700 disabled:opacity-40"
             >
-              Prev
+              {t.prev}
             </button>
 
             <div
@@ -1941,7 +2011,7 @@ export function PresenterConsole() {
               onClick={() => navigateToSlide(currentPage + 1)}
               className="rounded bg-slate-800 px-2 py-1 hover:bg-slate-700 disabled:opacity-40"
             >
-              Next
+              {t.next}
             </button>
           </div>
         )}
@@ -1955,9 +2025,9 @@ export function PresenterConsole() {
             onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
             className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-slate-200"
           >
-            <option value="full">Full</option>
-            <option value="split-horizontal">Split L|R</option>
-            <option value="split-vertical">Split T|B</option>
+            <option value="full">{t.cropFull}</option>
+            <option value="split-horizontal">{t.cropSplitHorizontal}</option>
+            <option value="split-vertical">{t.cropSplitVertical}</option>
           </select>
 
           <button
@@ -1967,7 +2037,7 @@ export function PresenterConsole() {
             onClick={handleToggleSwapSplit}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700 disabled:opacity-40"
           >
-            Swap Halves
+            {t.swapHalves}
           </button>
 
           <button
@@ -1981,7 +2051,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Blackout (B)
+            {t.blackoutBtn}
           </button>
 
           <button
@@ -1995,7 +2065,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Whiteout (W)
+            {t.whiteoutBtn}
           </button>
 
           <button
@@ -2009,7 +2079,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Freeze (F)
+            {t.freezeBtn}
           </button>
 
           <button
@@ -2023,7 +2093,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Laser (L)
+            {t.laserBtn}
           </button>
 
           <button
@@ -2037,7 +2107,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Pen (D)
+            {t.penBtn}
           </button>
 
           <div
@@ -2078,28 +2148,28 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Spotlight (S)
+            {t.spotlightBtn}
           </button>
 
           <button
             type="button"
             data-testid="spotlight-size-down"
             aria-label="Spotlight size -"
-            title={`Decrease spotlight radius ([ or mouse wheel) — current ${Math.round(spotlightRadius * 100)}%`}
+            title={`${t.spotlightBtn} - (${Math.round(spotlightRadius * 100)}%)`}
             onClick={() => handleAdjustSpotlightRadius(-0.04)}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Spot -
+            {t.spotMinus}
           </button>
           <button
             type="button"
             data-testid="spotlight-size-up"
             aria-label="Spotlight size +"
-            title={`Increase spotlight radius (] or mouse wheel) — current ${Math.round(spotlightRadius * 100)}%`}
+            title={`${t.spotlightBtn} + (${Math.round(spotlightRadius * 100)}%)`}
             onClick={() => handleAdjustSpotlightRadius(0.04)}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Spot +
+            {t.spotPlus}
           </button>
 
           <button
@@ -2108,7 +2178,7 @@ export function PresenterConsole() {
             onClick={() => handleAdjustPenSize(-0.004)}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Pen -
+            {t.penMinus}
           </button>
           <button
             type="button"
@@ -2116,7 +2186,7 @@ export function PresenterConsole() {
             onClick={() => handleAdjustPenSize(0.004)}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Pen +
+            {t.penPlus}
           </button>
 
           <button
@@ -2125,7 +2195,7 @@ export function PresenterConsole() {
             onClick={handleUndoStroke}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Undo
+            {t.undoBtn}
           </button>
 
           <button
@@ -2134,7 +2204,7 @@ export function PresenterConsole() {
             onClick={handleClearInk}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Clear Ink (C)
+            {t.clearInkBtn}
           </button>
 
           <button
@@ -2148,7 +2218,7 @@ export function PresenterConsole() {
                 : 'bg-purple-700 text-white hover:bg-purple-600'
             }`}
           >
-            Ink (H)
+            {t.inkBtn}
           </button>
 
           <button
@@ -2162,7 +2232,7 @@ export function PresenterConsole() {
                 : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
             }`}
           >
-            Guard
+            {t.guardBtn}
           </button>
 
           <button
@@ -2176,7 +2246,7 @@ export function PresenterConsole() {
             }}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700 disabled:opacity-40"
           >
-            Stats (R)
+            {t.statsBtn}
           </button>
 
           <button
@@ -2184,7 +2254,7 @@ export function PresenterConsole() {
             onClick={() => setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'))}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Grid (G)
+            {t.gridBtn}
           </button>
 
           <button
@@ -2192,15 +2262,31 @@ export function PresenterConsole() {
             onClick={() => setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'))}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Outline (O)
+            {t.outlineBtn}
           </button>
 
           <button
             type="button"
-            onClick={() => setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'))}
+            onClick={() => {
+              setHelpInitialTab('shortcuts');
+              setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
+            }}
             className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
           >
-            Help (?)
+            {t.helpBtn}
+          </button>
+
+          <button
+            type="button"
+            data-testid="locale-toggle"
+            title={t.localeToggleTitle}
+            aria-label={t.localeToggleTitle}
+            onClick={toggleLocale}
+            className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 font-mono text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
+          >
+            <span className={locale === 'ja' ? 'text-blue-400' : 'text-slate-400'}>JP</span>
+            <span className="mx-0.5 text-slate-500">/</span>
+            <span className={locale === 'en' ? 'text-blue-400' : 'text-slate-400'}>EN</span>
           </button>
         </div>
       </header>
@@ -2218,7 +2304,7 @@ export function PresenterConsole() {
             onClick={() => setErrorMessage(null)}
             className="ml-4 rounded bg-red-900 px-2 py-0.5 text-red-100 hover:bg-red-800"
           >
-            Dismiss
+            {t.dismiss}
           </button>
         </div>
       )}
@@ -2236,7 +2322,7 @@ export function PresenterConsole() {
             onClick={() => setInfoMessage(null)}
             className="ml-4 rounded bg-blue-900 px-2 py-0.5 text-blue-100 hover:bg-blue-800"
           >
-            Dismiss
+            {t.dismiss}
           </button>
         </div>
       )}
@@ -2249,7 +2335,7 @@ export function PresenterConsole() {
           className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-700 bg-amber-950/90 px-4 py-2 text-xs text-amber-100"
         >
           <span>
-            Popup blocked by browser! Open Audience URL manually:{' '}
+            {t.popupBlockedPrefix}{' '}
             <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono">{popupBlockedUrl}</code>
           </span>
           <div className="flex items-center gap-2">
@@ -2260,14 +2346,14 @@ export function PresenterConsole() {
               }}
               className="rounded bg-amber-600 px-2.5 py-1 font-medium text-white hover:bg-amber-500"
             >
-              Copy URL
+              {t.copyUrl}
             </button>
             <button
               type="button"
               onClick={() => setPopupBlockedUrl(null)}
               className="rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
             >
-              Dismiss
+              {t.dismiss}
             </button>
           </div>
         </div>
@@ -2280,17 +2366,14 @@ export function PresenterConsole() {
           data-testid="split-banner"
           className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-700 bg-indigo-950/90 px-4 py-2 text-xs text-indigo-100"
         >
-          <span>
-            Wide Touying split-page PDF detected (aspect ratio &gt; 2.4 / 分割スライド検出). Apply
-            Split L|R cropping?
-          </span>
+          <span>{t.splitDetectedMessage}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => handleSelectCropMode('split-horizontal')}
               className="rounded bg-indigo-600 px-2.5 py-1 font-medium text-white hover:bg-indigo-500"
             >
-              Apply Split L|R
+              {t.applySplitLR}
             </button>
             <button
               type="button"
@@ -2304,7 +2387,7 @@ export function PresenterConsole() {
               }}
               className="rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
             >
-              Dismiss
+              {t.dismiss}
             </button>
           </div>
         </div>
@@ -2317,18 +2400,15 @@ export function PresenterConsole() {
             data-testid="pdf-dropzone"
             aria-label="Drop PDF file here"
             onClick={() => pdfFileInputRef.current?.click()}
-            className="flex max-w-xl w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-900/60 p-10 text-center transition hover:border-blue-500 hover:bg-slate-900"
+            className="flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-900/60 p-8 text-center transition hover:border-blue-500 hover:bg-slate-900"
           >
-            <h1 className="text-2xl font-bold tracking-tight text-white">Typst Presenter</h1>
-            <p className="mt-2 text-sm text-slate-300">
-              Drag &amp; drop your PDF slide deck here, or click to select a file
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              Supports Typst, Marp, Beamer, PowerPoint/Keynote PDFs, paired Markdown/pdfpc notes,
-              and dual-window sync
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">
+              {t.onboardingDropTitle}
+            </h1>
+            <p className="mt-2 text-sm text-slate-300">{t.onboardingDropDesc}</p>
+            <p className="mt-1 text-xs text-slate-400">{t.onboardingSupports}</p>
             <div
-              className="mt-6 flex flex-wrap items-center justify-center gap-3"
+              className="mt-5 flex flex-wrap items-center justify-center gap-3"
               onClick={(e) => e.stopPropagation()}
             >
               <button
@@ -2336,26 +2416,68 @@ export function PresenterConsole() {
                 onClick={() => pdfFileInputRef.current?.click()}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
               >
-                Choose PDF File
+                {t.choosePdfFile}
               </button>
               <button
                 type="button"
                 onClick={handleLoadSampleDeck}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
               >
-                Load Sample Deck
+                {t.loadSampleDeck}
+              </button>
+              <button
+                type="button"
+                data-testid="onboarding-quick-guide-button"
+                onClick={() => {
+                  setHelpInitialTab('quickstart');
+                  setActiveModal('help');
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+              >
+                {t.quickGuideBtn}
               </button>
             </div>
           </div>
+
+          {/* 3-Step Quick Start Strip */}
+          <section
+            data-testid="onboarding-quickstart"
+            aria-label={t.quickStartHeading}
+            className="mt-4 w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900/60 p-4"
+          >
+            <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              {t.quickStartHeading}
+            </h2>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep1Title}</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  {t.quickStartStep1Desc}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep2Title}</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  {t.quickStartStep2Desc}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
+                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep3Title}</div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+                  {t.quickStartStep3Desc}
+                </p>
+              </div>
+            </div>
+          </section>
 
           {recentDecks.length > 0 && (
             <section
               data-testid="recent-decks-section"
               aria-label="Recent decks"
-              className="mt-6 w-full max-w-xl rounded-xl border border-slate-800 bg-slate-900/80 p-4"
+              className="mt-4 w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900/80 p-4"
             >
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Recent Decks
+                {t.recentDecksTitle}
               </h2>
               <ul className="space-y-2">
                 {recentDecks.map((deck) => (
@@ -2376,7 +2498,7 @@ export function PresenterConsole() {
                         onClick={() => void handleOpenRecentDeck(deck.deckId)}
                         className="rounded bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-500"
                       >
-                        Open
+                        {t.openRecent}
                       </button>
                       <button
                         type="button"
@@ -2384,7 +2506,7 @@ export function PresenterConsole() {
                         onClick={() => void handleDeleteRecentDeck(deck.deckId)}
                         className="rounded bg-slate-800 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-900/60"
                       >
-                        Delete
+                        {t.deleteRecent}
                       </button>
                     </div>
                   </li>
@@ -2459,11 +2581,11 @@ export function PresenterConsole() {
                 className="flex flex-col rounded-lg border border-slate-800 bg-slate-900 p-2.5"
               >
                 <div className="mb-1.5 flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-semibold uppercase tracking-wider">Next Slide</span>
+                  <span className="font-semibold uppercase tracking-wider">{t.nextSlide}</span>
                   <span>
                     {currentPage < meta.numPages
-                      ? `Slide ${currentPage + 1}`
-                      : 'Final Slide'}
+                      ? `${t.slideLabel} ${currentPage + 1}`
+                      : t.finalSlide}
                   </span>
                 </div>
                 <div className="flex h-32 items-center justify-center overflow-hidden rounded bg-slate-950 p-1">
@@ -2473,8 +2595,8 @@ export function PresenterConsole() {
                       deckId={meta.deckId}
                       pageNumber={currentPage + 1}
                       cropRegion={slideRegion}
-                      targetWidth={320}
-                      targetHeight={180}
+                      targetWidth={260}
+                      targetHeight={120}
                       testId="next-slide-canvas"
                       ariaLabel="Next slide preview"
                       onClick={() => navigateToSlide(currentPage + 1)}
@@ -2484,7 +2606,7 @@ export function PresenterConsole() {
                       data-testid="end-of-presentation"
                       className="text-center text-xs font-medium text-slate-400"
                     >
-                      End of Presentation
+                      {t.endOfPresentation}
                     </div>
                   )}
                 </div>
@@ -2498,7 +2620,7 @@ export function PresenterConsole() {
               >
                 <div className="flex items-center justify-between">
                   <div className="font-semibold uppercase tracking-wider text-slate-400">
-                    Clock{' '}
+                    {t.clock}{' '}
                     <span data-testid="wall-clock" className="font-mono text-slate-200">
                       {formatWallClock(nowTick)}
                     </span>{' '}
@@ -2524,7 +2646,7 @@ export function PresenterConsole() {
                 {/* Elapsed & Countdown */}
                 <div className="my-1.5 grid grid-cols-2 gap-1.5">
                   <div className="rounded bg-slate-950 px-2 py-1">
-                    <div className="text-[10px] text-slate-400">Elapsed</div>
+                    <div className="text-[10px] text-slate-400">{t.elapsed}</div>
                     <div
                       data-testid="elapsed-timer"
                       aria-label="Elapsed time"
@@ -2544,7 +2666,7 @@ export function PresenterConsole() {
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
-                      <span>Remaining</span>
+                      <span>{t.remaining}</span>
                       {timerSnapshot.lastMinutesWarning && (
                         <span
                           data-status="warning"
@@ -2552,7 +2674,7 @@ export function PresenterConsole() {
                           data-testid="timer-warning-badge"
                           className="font-bold text-amber-400"
                         >
-                          Warning
+                          {t.warn}
                         </span>
                       )}
                     </div>
@@ -2570,7 +2692,7 @@ export function PresenterConsole() {
                 {/* Per-slide timer */}
                 <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-400">
                   <span>
-                    Slide:{' '}
+                    {t.slidePrefix}{' '}
                     <strong data-testid="slide-elapsed" className="font-mono text-slate-200">
                       {formatDurationMMSS(timerSnapshot.slideElapsedMs)}
                     </strong>
@@ -2578,7 +2700,7 @@ export function PresenterConsole() {
                       ? ` / ${formatDurationMMSS(currentSlideEntry.targetSeconds * 1000)}`
                       : ''}
                   </span>
-                  <label className="flex items-center gap-1 cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-1">
                     <input
                       type="checkbox"
                       aria-label="Auto-start timer"
@@ -2589,7 +2711,7 @@ export function PresenterConsole() {
                         void storageService.savePrefs({ autoStartTimerOnFirstNav: checked });
                       }}
                     />
-                    <span>Auto-start</span>
+                    <span>{t.autoStart}</span>
                   </label>
                 </div>
 
@@ -2600,28 +2722,28 @@ export function PresenterConsole() {
                     onClick={startTimer}
                     className="flex-1 rounded bg-emerald-700 px-2 py-1 font-medium text-white hover:bg-emerald-600"
                   >
-                    Start
+                    {t.start}
                   </button>
                   <button
                     type="button"
                     onClick={pauseTimer}
                     className="flex-1 rounded bg-amber-700 px-2 py-1 font-medium text-white hover:bg-amber-600"
                   >
-                    Pause
+                    {t.pause}
                   </button>
                   <button
                     type="button"
                     onClick={resetTimer}
                     className="flex-1 rounded bg-slate-800 px-2 py-1 font-medium text-slate-200 hover:bg-slate-700"
                   >
-                    Reset
+                    {t.reset}
                   </button>
                 </div>
 
                 {/* Duration, Warning & End-Time inputs */}
                 <div className="grid grid-cols-3 gap-1 text-[10px]">
                   <label className="flex flex-col text-slate-400">
-                    <span>Duration (min)</span>
+                    <span>{t.durationMin}</span>
                     <input
                       type="number"
                       aria-label="Countdown duration (min)"
@@ -2639,7 +2761,7 @@ export function PresenterConsole() {
                   </label>
 
                   <label className="flex flex-col text-slate-400">
-                    <span>Warning (min)</span>
+                    <span>{t.warningMin}</span>
                     <input
                       type="number"
                       aria-label="Last minutes warning"
@@ -2657,7 +2779,7 @@ export function PresenterConsole() {
                   </label>
 
                   <label className="flex flex-col text-slate-400">
-                    <span>End Time</span>
+                    <span>{t.endTimeLabel}</span>
                     <input
                       type="time"
                       aria-label="End time"
@@ -2685,7 +2807,7 @@ export function PresenterConsole() {
               <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-800 pb-2 text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="font-semibold uppercase tracking-wider text-slate-300">
-                    Speaker Notes
+                    {t.speakerNotesTitle}
                   </span>
                   <button
                     type="button"
@@ -2704,7 +2826,7 @@ export function PresenterConsole() {
                     A+
                   </button>
                   <label className="ml-1 flex items-center gap-1 text-[11px] text-slate-400">
-                    <span>目標</span>
+                    <span>{t.targetLabel}</span>
                     <input
                       type="number"
                       min={0}
@@ -2724,7 +2846,7 @@ export function PresenterConsole() {
                       onBlur={() => void commitSlideTargetInput(slideTargetInputText)}
                       className="w-12 rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-center font-mono text-xs text-slate-100"
                     />
-                    <span>秒</span>
+                    <span>{t.secondsUnit}</span>
                   </label>
                 </div>
 
@@ -2735,7 +2857,7 @@ export function PresenterConsole() {
                       onClick={openNotesEditor}
                       className="rounded bg-blue-600 px-2 py-0.5 font-medium text-white hover:bg-blue-500"
                     >
-                      Edit Notes (E)
+                      {t.editNotesBtn}
                     </button>
                   ) : (
                     <button
@@ -2743,16 +2865,17 @@ export function PresenterConsole() {
                       onClick={() => void saveNotesEditor()}
                       className="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white hover:bg-emerald-500"
                     >
-                      Save
+                      {t.saveNotesBtn}
                     </button>
                   )}
 
                   <button
                     type="button"
-                    onClick={() => sidecarFileInputRef.current?.click()}
+                    data-testid="open-notes-import-button"
+                    onClick={() => setActiveModal('notes-import')}
                     className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
                   >
-                    Import Notes
+                    {t.importNotesBtn}
                   </button>
 
                   <button
@@ -2760,7 +2883,7 @@ export function PresenterConsole() {
                     onClick={() => void handleImportEmbeddedNotes()}
                     className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
                   >
-                    Import Embedded Notes
+                    {t.importEmbeddedBtn}
                   </button>
 
                   <button
@@ -2768,21 +2891,21 @@ export function PresenterConsole() {
                     onClick={() => handleExportNotes('md')}
                     className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
                   >
-                    Export .md
+                    {t.exportMdBtn}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleExportNotes('json')}
                     className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
                   >
-                    Export .json
+                    {t.exportJsonBtn}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleExportNotes('pdfpc')}
                     className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
                   >
-                    Export .pdfpc
+                    {t.exportPdfpcBtn}
                   </button>
                 </div>
               </div>
@@ -2793,7 +2916,7 @@ export function PresenterConsole() {
                     aria-label="Speaker notes editor"
                     value={draftNoteText}
                     onChange={(e) => setDraftNoteText(e.target.value)}
-                    placeholder="Enter Markdown speaker notes for this slide..."
+                    placeholder={t.notesEditorPlaceholder}
                     className="flex-1 resize-none rounded border border-slate-700 bg-slate-950 p-2.5 font-mono text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -2806,12 +2929,30 @@ export function PresenterConsole() {
                   {currentSlideMarkdown.trim().length > 0 ? (
                     <ReactMarkdown>{currentSlideMarkdown}</ReactMarkdown>
                   ) : (
-                    <p
-                      style={{ fontSize: `${noteFontSizePx}px` }}
-                      className="italic text-slate-500"
-                    >
-                      No speaker notes for this slide. Press E or click Edit Notes to add script.
-                    </p>
+                    <div className="flex flex-col items-start gap-2.5 py-2">
+                      <p
+                        style={{ fontSize: `${noteFontSizePx}px` }}
+                        className="m-0 italic text-slate-500"
+                      >
+                        {t.noNotesPlaceholder}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={openNotesEditor}
+                          className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
+                        >
+                          {t.quickEditHintBtn}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveModal('notes-import')}
+                          className="rounded border border-slate-700 bg-slate-950 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-800"
+                        >
+                          {t.quickImportHintBtn}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
@@ -2830,16 +2971,16 @@ export function PresenterConsole() {
           className="fixed inset-0 z-40 flex flex-col bg-slate-950/95 p-6"
         >
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">Slide Grid Overview (G)</h2>
+            <h2 className="text-lg font-bold text-white">{t.gridOverviewTitle}</h2>
             <button
               type="button"
               onClick={() => setActiveModal('none')}
               className="rounded bg-slate-800 px-3 py-1 text-sm text-slate-200 hover:bg-slate-700"
             >
-              Close (Esc)
+              {t.closeEsc}
             </button>
           </div>
-          <div className="grid flex-1 grid-cols-3 gap-4 overflow-y-auto p-2 md:grid-cols-4">
+          <div className="grid flex-1 content-start grid-cols-3 gap-4 overflow-y-auto p-2 md:grid-cols-4">
             {Array.from({ length: meta.numPages }, (_, i) => i + 1).map((pageNum) => (
               <div
                 key={pageNum}
@@ -2859,8 +3000,8 @@ export function PresenterConsole() {
                     deckId={meta.deckId}
                     pageNumber={pageNum}
                     cropRegion={slideRegion}
-                    targetWidth={320}
-                    targetHeight={180}
+                    targetWidth={280}
+                    targetHeight={136}
                     testId={`thumb-canvas-${pageNum}`}
                     ariaLabel={`Slide ${pageNum} thumbnail`}
                     onClick={() => {
@@ -2870,7 +3011,7 @@ export function PresenterConsole() {
                   />
                 </div>
                 <span className="mt-1.5 text-xs font-medium text-slate-300">
-                  Slide {pageNum}
+                  {t.slideLabel} {pageNum}
                 </span>
               </div>
             ))}
@@ -2888,113 +3029,47 @@ export function PresenterConsole() {
           className="fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-slate-800 bg-slate-900 p-4 shadow-2xl"
         >
           <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-2">
-            <h2 className="text-base font-bold text-white">Outline / Table of Contents (O)</h2>
+            <h2 className="text-base font-bold text-white">{t.outlineTitle}</h2>
             <button
               type="button"
               onClick={() => setActiveModal('none')}
               className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-200 hover:bg-slate-700"
             >
-              Close
+              {t.close}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {meta && meta.outline.length > 0 ? (
               renderOutlineNodes(meta.outline)
             ) : (
-              <p className="py-6 text-center text-sm text-slate-400">
-                No outline available in this PDF (見出しなし)
-              </p>
+              <p className="py-6 text-center text-sm text-slate-400">{t.noOutlineAvailable}</p>
             )}
           </div>
         </div>
       )}
 
-      {/* Help Modal (?) */}
+      {/* Notes Import Modal */}
+      {activeModal === 'notes-import' && (
+        <NotesImportModal
+          hasDeck={Boolean(meta)}
+          embeddedNotesCount={Object.keys(meta?.extractedNotes ?? {}).length}
+          onClose={() => setActiveModal('none')}
+          onChooseNotesFile={() => sidecarFileInputRef.current?.click()}
+          onDropNotesFile={(file) => {
+            void handleSidecarFile(file);
+          }}
+          onImportEmbeddedNotes={() => {
+            void handleImportEmbeddedNotes();
+          }}
+          onDownloadTemplate={(content) => {
+            triggerTextDownload('notes-template.md', content, 'text/markdown;charset=utf-8');
+          }}
+        />
+      )}
+
+      {/* Help & Quick Start Modal (?) */}
       {activeModal === 'help' && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Keyboard shortcuts help"
-          data-testid="help-modal"
-          className="fixed inset-0 z-40 flex items-center justify-center bg-black/75 p-4"
-        >
-          <div className="max-w-lg w-full rounded-xl border border-slate-700 bg-slate-900 p-6 shadow-xl">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">Keyboard Shortcuts &amp; Help (?)</h2>
-              <button
-                type="button"
-                onClick={() => setActiveModal('none')}
-                className="rounded bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700"
-              >
-                Close (Esc)
-              </button>
-            </div>
-            <ul className="space-y-2 text-sm text-slate-300">
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">→</kbd> /{' '}
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">Space</kbd> /{' '}
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">←</kbd> : Next /
-                Previous Slide
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">1-9</kbd> +{' '}
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">Enter</kbd> : Direct
-                Slide Jump
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">B</kbd> : Toggle
-                Blackout Curtain
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">W</kbd> : Toggle
-                Whiteout Curtain
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">F</kbd> : Toggle
-                Freeze Audience Display
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">L</kbd> : Toggle
-                Laser Pointer
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">D</kbd> : Toggle
-                Freehand Pen Tool (<kbd className="rounded bg-slate-800 px-1 font-mono">+/-</kbd>{' '}
-                size)
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">S</kbd> : Toggle
-                Spotlight Tool (<kbd className="rounded bg-slate-800 px-1 font-mono">[</kbd> /{' '}
-                <kbd className="rounded bg-slate-800 px-1 font-mono">]</kbd> or wheel size)
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">C</kbd> : Clear Ink
-                on Current Slide
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">H</kbd> : Toggle Ink
-                Visibility
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">R</kbd> : Toggle
-                Rehearsal Stats
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">G</kbd> /{' '}
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">Tab</kbd> : Toggle
-                Slide Grid Overview
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">O</kbd> : Toggle PDF
-                Outline Drawer
-              </li>
-              <li>
-                <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono">E</kbd> : Edit
-                Speaker Notes Inline
-              </li>
-            </ul>
-          </div>
-        </div>
+        <HelpModal initialTab={helpInitialTab} onClose={() => setActiveModal('none')} />
       )}
 
       {/* Rehearsal Stats Modal (R) */}

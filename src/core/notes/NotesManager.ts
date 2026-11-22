@@ -1,4 +1,5 @@
 import { clampNoteFontSize, DEFAULT_PREFS } from '../storage/StorageService.ts';
+import { parseValidHHMM } from '../timer/TimerEngine.ts';
 import type { DeckNotesBundle, SlideNoteEntry } from './types.ts';
 
 export interface ParsedSidecarResult {
@@ -407,7 +408,7 @@ function parseLeadingFrontmatter(text: string): {
     } else if (key === 'notefontsize' || key === 'notefontsizepx') {
       const num = Number.parseFloat(val);
       if (Number.isFinite(num) && num > 0) noteFontSizePx = clampNoteFontSize(num);
-    } else if ((key === 'endtime' || key === 'endtimehhmm') && /^\d{1,2}:\d{2}$/.test(val)) {
+    } else if ((key === 'endtime' || key === 'endtimehhmm') && parseValidHHMM(val) !== null) {
       endTimeHHMM = val;
     }
   }
@@ -527,8 +528,8 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
     ) {
       noteFontSizePx = clampNoteFontSize(obj.noteFontSize);
     }
-    if (typeof obj.endTime === 'string' && /^\d{1,2}:\d{2}$/.test(obj.endTime)) {
-      endTimeHHMM = obj.endTime;
+    if (typeof obj.endTime === 'string' && parseValidHHMM(obj.endTime) !== null) {
+      endTimeHHMM = obj.endTime.trim();
     }
 
     if (Array.isArray(obj.pages)) {
@@ -582,8 +583,8 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
   ) {
     noteFontSizePx = clampNoteFontSize(obj.noteFontSizePx);
   }
-  if (typeof obj.endTimeHHMM === 'string' && /^\d{1,2}:\d{2}$/.test(obj.endTimeHHMM)) {
-    endTimeHHMM = obj.endTimeHHMM;
+  if (typeof obj.endTimeHHMM === 'string' && parseValidHHMM(obj.endTimeHHMM) !== null) {
+    endTimeHHMM = obj.endTimeHHMM.trim();
   }
 
   const rawSlides =
@@ -710,7 +711,7 @@ export function exportNotesToMarkdown(bundle: DeckNotesBundle, numPages: number)
   }
 
   const trimmedEndTime =
-    typeof bundle.endTimeHHMM === 'string' && /^\d{1,2}:\d{2}$/.test(bundle.endTimeHHMM.trim())
+    typeof bundle.endTimeHHMM === 'string' && parseValidHHMM(bundle.endTimeHHMM) !== null
       ? bundle.endTimeHHMM.trim()
       : undefined;
   const hasCustomDuration =

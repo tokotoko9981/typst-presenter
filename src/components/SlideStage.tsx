@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useI18n } from '../core/i18n/I18nContext.tsx';
 import type { PdfEngine } from '../core/pdf/PdfEngine.ts';
 import type { CropRegion, PdfLinkAnnotation } from '../core/pdf/types.ts';
 import type {
@@ -75,6 +76,7 @@ export function SlideStage({
   onStrokeCommit,
   onStrokeLiveUpdate,
 }: SlideStageProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -657,7 +659,7 @@ export function SlideStage({
             }`}
           >
             <span className="rounded-md border border-current px-3 py-1 text-xs font-semibold uppercase tracking-wider">
-              {curtainMode === 'black' ? 'Blackout Active (B)' : 'Whiteout Active (W)'}
+              {curtainMode === 'black' ? t.blackoutActive : t.whiteoutActive}
             </span>
           </div>
         )}

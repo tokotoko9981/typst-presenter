@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { I18nProvider } from './core/i18n/I18nContext.tsx';
 import { AudienceView } from './features/audience/AudienceView.tsx';
 import { PresenterConsole } from './features/presenter/PresenterConsole.tsx';
 
@@ -23,11 +24,11 @@ export function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  if (route === 'audience') {
-    return <AudienceView />;
-  }
-
-  return <PresenterConsole />;
+  return (
+    <I18nProvider>
+      {route === 'audience' ? <AudienceView /> : <PresenterConsole />}
+    </I18nProvider>
+  );
 }
 
 export default App;

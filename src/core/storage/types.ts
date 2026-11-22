@@ -40,4 +40,5 @@ export interface PresenterPrefs {
   penWidth: number;
   spotlightRadius: number;
   activeDeckId: string | null;
+  locale?: 'ja' | 'en';
 }

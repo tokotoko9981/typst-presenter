@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { useI18n } from '../../core/i18n/I18nContext.tsx';
 import type { RehearsalReport, SlideTimingSummary } from '../../core/timer/RehearsalTracker.ts';
 import { formatDurationMMSS } from '../../core/timer/TimerEngine.ts';
 
@@ -55,6 +56,8 @@ export function RehearsalStatsModal({
   onExportMarkdown,
   onExportCsv,
 }: RehearsalStatsModalProps) {
+  const { t } = useI18n();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -108,8 +111,10 @@ export function RehearsalStatsModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-white">Rehearsal Timing Analytics</h2>
-            <p className="truncate text-xs text-slate-400">{deckFileName || 'Presentation'}</p>
+            <h2 className="text-lg font-bold text-white">{t.rehearsalTitle}</h2>
+            <p className="truncate text-xs text-slate-400">
+              {deckFileName || t.presentationFallback}
+            </p>
           </div>
           {totalDelta !== null && (
             <span
@@ -119,7 +124,7 @@ export function RehearsalStatsModal({
                   : 'border border-emerald-700 bg-emerald-950 text-emerald-300'
               }`}
             >
-              Total Delta: {formatDeltaSeconds(totalDelta)}
+              {t.totalDeltaPrefix} {formatDeltaSeconds(totalDelta)}
             </span>
           )}
         </div>
@@ -128,7 +133,7 @@ export function RehearsalStatsModal({
         <div className="grid grid-cols-3 gap-3 border-b border-slate-800 px-5 py-3">
           <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
             <div className="text-[11px] uppercase tracking-wider text-slate-400">
-              Total Actual
+              {t.totalActual}
             </div>
             <div
               data-testid="rehearsal-total-actual"
@@ -141,7 +146,7 @@ export function RehearsalStatsModal({
 
           <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
             <div className="text-[11px] uppercase tracking-wider text-slate-400">
-              Total Target
+              {t.totalTarget}
             </div>
             <div
               data-testid="rehearsal-total-target"
@@ -152,13 +157,13 @@ export function RehearsalStatsModal({
                 : '—'}
             </div>
             <div className="text-[11px] text-slate-500">
-              {report.totalTargetSeconds > 0 ? `${report.totalTargetSeconds}s` : 'No targets set'}
+              {report.totalTargetSeconds > 0 ? `${report.totalTargetSeconds}s` : t.noTargetsSet}
             </div>
           </div>
 
           <div className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2">
             <div className="text-[11px] uppercase tracking-wider text-slate-400">
-              Visited Slides
+              {t.visitedSlides}
             </div>
             <div
               data-testid="rehearsal-slides-visited"
@@ -168,8 +173,8 @@ export function RehearsalStatsModal({
             </div>
             <div className="text-[11px] text-slate-500">
               {report.totalPages > 0
-                ? `${Math.round((report.slidesVisited / report.totalPages) * 100)}% coverage`
-                : '0% coverage'}
+                ? `${Math.round((report.slidesVisited / report.totalPages) * 100)}${t.coverageSuffix}`
+                : `0${t.coverageSuffix}`}
             </div>
           </div>
         </div>
@@ -177,9 +182,7 @@ export function RehearsalStatsModal({
         {/* Per-Slide Breakdown */}
         <div className="flex-1 space-y-2 overflow-y-auto px-5 py-3">
           {report.slides.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">
-              No slide timing data recorded yet.
-            </p>
+            <p className="py-8 text-center text-sm text-slate-400">{t.noTimingData}</p>
           ) : (
             report.slides.map((slide) => {
               const barPercent =
@@ -199,9 +202,11 @@ export function RehearsalStatsModal({
                 >
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-100">Slide {slide.page}</span>
+                      <span className="font-semibold text-slate-100">
+                        {t.slideLabel} {slide.page}
+                      </span>
                       <span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
-                        {slide.visits} {slide.visits === 1 ? 'visit' : 'visits'}
+                        {slide.visits} {slide.visits === 1 ? t.visitSingular : t.visitPlural}
                       </span>
                     </div>
 
@@ -255,21 +260,21 @@ export function RehearsalStatsModal({
               }}
               className="rounded bg-blue-600 px-3 py-1.5 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Apply Actual as Targets
+              {t.applyActualAsTargets}
             </button>
             <button
               type="button"
               onClick={onExportMarkdown}
               className="rounded bg-slate-800 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-700"
             >
-              Export Report (.md)
+              {t.exportReportMd}
             </button>
             <button
               type="button"
               onClick={onExportCsv}
               className="rounded bg-slate-800 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-700"
             >
-              Export Report (.csv)
+              {t.exportReportCsv}
             </button>
           </div>
 
@@ -278,7 +283,7 @@ export function RehearsalStatsModal({
             onClick={onClose}
             className="rounded bg-slate-800 px-3 py-1.5 font-medium text-slate-200 hover:bg-slate-700"
           >
-            Close (Esc)
+            {t.closeEsc}
           </button>
         </div>
       </div>

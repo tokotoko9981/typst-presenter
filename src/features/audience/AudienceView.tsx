@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SlideStage } from '../../components/SlideStage.tsx';
+import { useI18n } from '../../core/i18n/I18nContext.tsx';
 import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
 import type { CropMode } from '../../core/pdf/types.ts';
 import { resolveSplitCropRegions } from '../../core/pdf/viewportMath.ts';
@@ -25,6 +26,7 @@ function parseSessionIdFromHash(hash: string): string {
 }
 
 export function AudienceView() {
+  const { t } = useI18n();
   const [sessionId, setSessionId] = useState<string>(() =>
     parseSessionIdFromHash(window.location.hash),
   );
@@ -313,12 +315,8 @@ export function AudienceView() {
         />
       ) : (
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-slate-200">
-            Typst Presenter — Audience Display
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Standby mode — Waiting for Presenter deck... (接続待機中)
-          </p>
+          <h1 className="text-xl font-semibold text-slate-200">{t.audienceStandbyTitle}</h1>
+          <p className="mt-2 text-sm text-slate-400">{t.audienceStandbySubtitle}</p>
         </div>
       )}
 
@@ -330,7 +328,7 @@ export function AudienceView() {
           data-testid="fullscreen-prompt"
           className="fixed bottom-2 right-2 z-20 rounded bg-slate-900/60 px-2.5 py-1 text-[11px] text-slate-400 transition-opacity hover:bg-slate-800 hover:text-slate-200"
         >
-          Click or press F for Fullscreen (全画面)
+          {t.fullscreenPrompt}
         </button>
       )}
 

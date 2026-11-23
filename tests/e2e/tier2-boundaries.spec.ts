@@ -121,7 +121,7 @@ test.describe('Tier 2 — Boundary, Negative & Edge Cases (Areas A–G)', () => 
     await expect(errorBanner).toBeVisible({ timeout: 10_000 });
 
     await loadSampleDeck(page);
-    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 6 });
+    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 8 });
     errors.assertNoErrors();
   });
 

@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   LOCALE_STORAGE_KEY,
   TRANSLATIONS,
   detectInitialLocale,
 } from '../../src/core/i18n/translations.ts';
+import { THEME_STORAGE_KEY, detectInitialTheme } from '../../src/core/theme/ThemeContext.tsx';
 import {
   exportNotesToMarkdown,
   parseJsonOrPdfpcSidecar,
@@ -169,6 +170,50 @@ describe('Edge Cases: mixed/portrait viewports, malformed sidecars, and i18n par
       expect(detectInitialLocale()).toBe('en');
 
       localStorage.removeItem(LOCALE_STORAGE_KEY);
+    });
+
+    it('detectInitialTheme respects saved theme and follows OS prefers-color-scheme', () => {
+      const originalMatchMedia = window.matchMedia;
+      try {
+        localStorage.removeItem(THEME_STORAGE_KEY);
+
+        Object.defineProperty(window, 'matchMedia', {
+          configurable: true,
+          writable: true,
+          value: vi.fn().mockImplementation((query: string) => ({
+            matches: query.includes('prefers-color-scheme: light'),
+            media: query,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          })),
+        });
+        expect(detectInitialTheme()).toBe('light');
+
+        Object.defineProperty(window, 'matchMedia', {
+          configurable: true,
+          writable: true,
+          value: vi.fn().mockImplementation((query: string) => ({
+            matches: false,
+            media: query,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          })),
+        });
+        expect(detectInitialTheme()).toBe('dark');
+
+        localStorage.setItem(THEME_STORAGE_KEY, 'light');
+        expect(detectInitialTheme()).toBe('light');
+
+        localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+        expect(detectInitialTheme()).toBe('dark');
+      } finally {
+        localStorage.removeItem(THEME_STORAGE_KEY);
+        Object.defineProperty(window, 'matchMedia', {
+          configurable: true,
+          writable: true,
+          value: originalMatchMedia,
+        });
+      }
     });
   });
 });

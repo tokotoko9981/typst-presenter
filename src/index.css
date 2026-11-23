@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 @import "pdfjs-dist/web/pdf_viewer.css";
 
 html,
@@ -6,4 +7,5 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  overscroll-behavior-x: none;
 }

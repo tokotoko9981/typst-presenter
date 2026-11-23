@@ -24,19 +24,25 @@ export interface TranslationDict {
   // Brand & Top Toolbar
   appTitle: string;
   openPdf: string;
+  sampleShortBtn: string;
   loadSampleDeck: string;
   recentDecksBtn: string;
+  recentDecksTooltip: string;
   watchPdf: string;
+  watchPdfTooltip: string;
   stopWatch: string;
   defaultDisplay: string;
   primaryTag: string;
   displaysBtn: string;
   refreshDisplaysAria: string;
+  audienceShortBtn: string;
   launchAudienceWindow: string;
   audienceConnected: string;
   audienceDisconnected: string;
   prev: string;
   next: string;
+  prevSlideTooltip: string;
+  nextSlideTooltip: string;
   cropFull: string;
   cropSplitHorizontal: string;
   cropSplitVertical: string;
@@ -57,10 +63,13 @@ export interface TranslationDict {
   guardBtn: string;
   statsBtn: string;
   gridBtn: string;
+  gridAria: string;
   outlineBtn: string;
   helpBtn: string;
   quickGuideBtn: string;
   localeToggleTitle: string;
+  themeToLight: string;
+  themeToDark: string;
   dismiss: string;
   close: string;
   closeEsc: string;
@@ -111,10 +120,16 @@ export interface TranslationDict {
   speakerNotesTitle: string;
   targetLabel: string;
   secondsUnit: string;
+  fontDecreaseTooltip: string;
+  fontIncreaseTooltip: string;
   editNotesBtn: string;
   saveNotesBtn: string;
   importNotesBtn: string;
   importEmbeddedBtn: string;
+  exportNotesBtn: string;
+  exportMdItem: string;
+  exportJsonItem: string;
+  exportPdfpcItem: string;
   exportMdBtn: string;
   exportJsonBtn: string;
   exportPdfpcBtn: string;
@@ -220,70 +235,79 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
   en: {
     appTitle: 'Typst Presenter',
     openPdf: 'Open PDF',
+    sampleShortBtn: 'Sample',
     loadSampleDeck: 'Load Sample Deck',
-    recentDecksBtn: 'Recent Decks',
-    watchPdf: 'Watch PDF',
-    stopWatch: 'Stop Watch',
+    recentDecksBtn: 'Recent',
+    recentDecksTooltip: 'Recent Decks & Start Screen',
+    watchPdf: 'Watch',
+    watchPdfTooltip: 'Watch PDF file for auto-reload on Chromium',
+    stopWatch: 'Watching',
     defaultDisplay: 'Default Display',
     primaryTag: '[Primary]',
     displaysBtn: 'Displays',
     refreshDisplaysAria: 'Refresh displays',
+    audienceShortBtn: 'Audience',
     launchAudienceWindow: 'Launch Audience Window',
-    audienceConnected: 'Audience Connected',
-    audienceDisconnected: 'Audience Disconnected',
+    audienceConnected: 'Connected',
+    audienceDisconnected: 'Disconnected',
     prev: 'Prev',
     next: 'Next',
+    prevSlideTooltip: 'Previous (←)',
+    nextSlideTooltip: 'Next (→)',
     cropFull: 'Full',
     cropSplitHorizontal: 'Split L|R',
     cropSplitVertical: 'Split T|B',
-    swapHalves: 'Swap Halves',
+    swapHalves: 'Swap Split Halves',
     blackoutBtn: 'Blackout (B)',
     whiteoutBtn: 'Whiteout (W)',
-    freezeBtn: 'Freeze (F)',
-    laserBtn: 'Laser (L)',
+    freezeBtn: 'Freeze Audience (F)',
+    laserBtn: 'Laser Pointer (L)',
     penBtn: 'Pen (D)',
     spotlightBtn: 'Spotlight (S)',
-    spotMinus: 'Spot -',
-    spotPlus: 'Spot +',
-    penMinus: 'Pen -',
-    penPlus: 'Pen +',
-    undoBtn: 'Undo',
+    spotMinus: 'Smaller Spotlight ([)',
+    spotPlus: 'Larger Spotlight (])',
+    penMinus: 'Thinner Pen (-)',
+    penPlus: 'Thicker Pen (+)',
+    undoBtn: 'Undo Stroke',
     clearInkBtn: 'Clear Ink (C)',
-    inkBtn: 'Ink (H)',
-    guardBtn: 'Guard',
-    statsBtn: 'Stats (R)',
-    gridBtn: 'Grid (G)',
+    inkBtn: 'Toggle Ink Visibility (H)',
+    guardBtn: 'Reload Guard',
+    statsBtn: 'Rehearsal Stats (R)',
+    gridBtn: 'Slide Grid (G)',
+    gridAria: 'Thumbnail Overview (G)',
     outlineBtn: 'Outline (O)',
-    helpBtn: 'Help (?)',
+    helpBtn: 'Help & Shortcuts (?)',
     quickGuideBtn: 'Quick Guide (?)',
     localeToggleTitle: 'Switch language (JP / EN)',
+    themeToLight: 'Switch to Light Mode',
+    themeToDark: 'Switch to Dark Mode',
     dismiss: 'Dismiss',
     close: 'Close',
     closeEsc: 'Close (Esc)',
 
-    popupBlockedPrefix: 'Popup blocked by browser! Open Audience URL manually:',
+    popupBlockedPrefix: 'Popup blocked. Open this Audience URL manually:',
     copyUrl: 'Copy URL',
     splitDetectedMessage:
-      'Wide Touying split-page PDF detected (aspect ratio > 2.4). Apply Split L|R cropping?',
+      'Wide split-page PDF detected (aspect ratio > 2.4). Apply Split L|R?',
     applySplitLR: 'Apply Split L|R',
     blackoutActive: 'Blackout Active (B)',
     whiteoutActive: 'Whiteout Active (W)',
 
     onboardingDropTitle: 'Typst Presenter',
-    onboardingDropDesc: 'Drag & drop your PDF slide deck here, or click to select a file',
+    onboardingDropDesc: 'Drop your slide PDF here, or click to select a file.',
     onboardingSupports:
-      'Supports Typst, Marp, Beamer, PowerPoint/Keynote PDFs, paired Markdown/pdfpc notes, and dual-window sync',
+      'Supports Typst, Marp, Beamer, PowerPoint/Keynote PDFs, Markdown/pdfpc notes, and local 2-window sync.',
     choosePdfFile: 'Choose PDF File',
     recentDecksTitle: 'Recent Decks',
     openRecent: 'Open',
     deleteRecent: 'Delete',
-    quickStartHeading: 'Quick Start (3 Steps)',
-    quickStartStep1Title: '1. Load PDF (or Watch)',
-    quickStartStep1Desc: 'Drop a PDF + notes file together, or try the built-in Sample Deck.',
-    quickStartStep2Title: '2. Notes & Timing',
-    quickStartStep2Desc: 'Import .md / Marp / .pdfpc / PDF annotations, or press E to edit.',
+    quickStartHeading: 'Quick Start',
+    quickStartStep1Title: '1. Load Slides',
+    quickStartStep1Desc: 'Drop a PDF (and optional notes), or try Sample.',
+    quickStartStep2Title: '2. Load or Edit Notes',
+    quickStartStep2Desc: 'Import .md, Marp, .pdfpc, or embedded PDF notes; press E to edit.',
     quickStartStep3Title: '3. Present Dual-Window',
-    quickStartStep3Desc: 'Click Launch Audience Window for projector view, Laser (L), & Spotlight (S).',
+    quickStartStep3Desc: 'Click Audience for the projector view, plus Laser (L) and Spotlight (S).',
 
     nextSlide: 'Next Slide',
     slideLabel: 'Slide',
@@ -305,89 +329,95 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     speakerNotesTitle: 'Speaker Notes',
     targetLabel: 'Target',
     secondsUnit: 's',
+    fontDecreaseTooltip: 'Decrease font size (A-)',
+    fontIncreaseTooltip: 'Increase font size (A+)',
     editNotesBtn: 'Edit Notes (E)',
     saveNotesBtn: 'Save',
     importNotesBtn: 'Import Notes',
     importEmbeddedBtn: 'Import Embedded Notes',
+    exportNotesBtn: 'Export',
+    exportMdItem: 'Markdown (.md)',
+    exportJsonItem: 'JSON (.json)',
+    exportPdfpcItem: 'pdfpc (.pdfpc)',
     exportMdBtn: 'Export .md',
     exportJsonBtn: 'Export .json',
     exportPdfpcBtn: 'Export .pdfpc',
     notesEditorPlaceholder: 'Enter Markdown speaker notes for this slide...',
     noNotesPlaceholder: 'No speaker notes for this slide.',
     quickImportHintBtn: 'Import Notes...',
-    quickEditHintBtn: 'Edit Notes (E)',
+    quickEditHintBtn: 'Write Note (E)',
 
     notesImportTitle: 'Import Speaker Notes',
-    notesImportSubtitle: 'Load external script files or extract embedded PDF notes.',
-    notesDropzoneTitle: 'Drop a notes file here (.md, .markdown, .json, .pdfpc)',
-    notesDropzoneHint: 'You can also drag & drop a PDF and notes file together anywhere in the app.',
+    notesImportSubtitle: 'Load a script file or extract embedded PDF notes.',
+    notesDropzoneTitle: 'Drop a notes file (.md, .markdown, .json, .pdfpc)',
+    notesDropzoneHint: 'You can also drop a PDF and notes file together anywhere in the window.',
     chooseNotesFile: 'Choose Notes File',
     importEmbeddedSectionTitle: 'Embedded PDF Notes (#pdf.attach / Annotations)',
-    importEmbeddedReadyDesc: 'Embedded notes are detected in the current PDF.',
-    importEmbeddedNoneDesc: 'No embedded notes were detected on load (you can still re-scan).',
-    formatGuideTitle: 'Supported Formats & Syntax',
+    importEmbeddedReadyDesc: 'Embedded notes were detected in this PDF.',
+    importEmbeddedNoneDesc: 'No embedded notes found on load (click to re-scan).',
+    formatGuideTitle: 'Supported Formats',
     formatBulletMarkdown:
-      'Markdown (---): Separate slides with ---, or specify pages with <!-- slide: 1 -->.',
+      'Markdown: Split slides with ---, or assign pages with <!-- slide: N -->.',
     formatBulletExplicit:
-      'Slide Target Time: Add <!-- target: 45 --> inside a slide note to set target seconds.',
+      'Target seconds: Add <!-- target: 45 --> inside a slide note to set pacing.',
     formatBulletMarpSlidev:
-      'Marp / Slidev .md: Source Markdown can be loaded directly (directives are stripped cleanly).',
+      'Marp / Slidev .md: Directives are stripped and HTML comments become slide notes.',
     formatBulletPdfpc:
-      'JSON / .pdfpc: Standard pdfpc v2 files and exported DeckNotesBundle JSON are supported.',
+      'JSON / .pdfpc: Standard pdfpc v2 files and exported DeckNotesBundle JSON work directly.',
     formatBulletPairDrop:
-      'Pair Drop: Drop both slides.pdf and notes.md onto the window in one action.',
+      'Pair drop: Drop slides.pdf and notes.md together in one drag.',
     copyTemplateBtn: 'Copy .md Template',
     copiedTemplateBtn: 'Copied!',
-    downloadTemplateBtn: 'Download Template (.md)',
+    downloadTemplateBtn: 'Download .md Template',
 
     helpModalTitle: 'Guide & Shortcuts (?)',
     helpTabQuickStart: 'Quick Start',
     helpTabShortcuts: 'Shortcuts',
     helpTabFormats: 'Notes Format',
-    helpQuickStep1Title: '1. Open Your Slide PDF',
+    helpQuickStep1Title: '1. Load or Watch PDF',
     helpQuickStep1Body:
-      'Click Open PDF or drag & drop a PDF (portrait, mixed aspect ratios, or Touying split slides all fit cleanly). Use Watch PDF on Chromium to auto-reload on typst watch.',
-    helpQuickStep2Title: '2. Add Speaker Notes & Targets',
+      'Open or drop a PDF (portrait, mixed aspect ratios, and Touying split slides fit cleanly). Use Watch on Chromium to reload automatically when typst watch rebuilds.',
+    helpQuickStep2Title: '2. Prepare Notes & Targets',
     helpQuickStep2Body:
-      'Click Import Notes for Markdown, Marp/Slidev, .pdfpc, or embedded #pdf.attach / PDF annotations, or press E to write notes per slide.',
-    helpQuickStep3Title: '3. Launch Audience Window',
+      'Import Markdown, Marp/Slidev, .pdfpc, or embedded PDF notes, or press E to edit per slide. Set <!-- target: 45 --> for slide pacing.',
+    helpQuickStep3Title: '3. Open Audience Display',
     helpQuickStep3Body:
-      'Click Launch Audience Window and move/fullscreen it on your projector (F). Both windows stay synced offline via BroadcastChannel + IndexedDB.',
+      'Click Audience to open the projector window and press F (or double-click) for fullscreen. Sync runs locally via BroadcastChannel and IndexedDB.',
     helpQuickStep4Title: '4. Deliver & Review Timing',
     helpQuickStep4Body:
-      'Use Laser (L), Pen (D), Spotlight (S, click to pin / wheel or [ ] to resize), curtains (B/W), Freeze (F), and Stats (R) for rehearsal pacing.',
+      'Use Laser (L), Pen (D), Spotlight (S; click to pin, wheel or [ / ] to resize), curtains (B/W), Freeze (F), and Stats (R) to inspect rehearsal pacing.',
 
     shortcutNav: 'Next / Previous Slide',
-    shortcutJump: 'Direct Slide Jump',
+    shortcutJump: 'Jump to Slide Number',
     shortcutBlackout: 'Toggle Blackout Curtain',
     shortcutWhiteout: 'Toggle Whiteout Curtain',
-    shortcutFreeze: 'Toggle Freeze Audience Display',
+    shortcutFreeze: 'Freeze / Unfreeze Audience Display',
     shortcutLaser: 'Toggle Laser Pointer',
-    shortcutPen: 'Toggle Freehand Pen Tool (+/- size)',
-    shortcutSpotlight: 'Toggle Spotlight (click to pin, wheel or [ / ] size)',
+    shortcutPen: 'Toggle Freehand Pen (+ / - width)',
+    shortcutSpotlight: 'Toggle Spotlight (click to pin, wheel or [ / ] radius)',
     shortcutClearInk: 'Clear Ink on Current Slide',
-    shortcutToggleInk: 'Toggle Ink Visibility',
-    shortcutStats: 'Toggle Rehearsal Stats',
-    shortcutGrid: 'Toggle Slide Grid Overview',
-    shortcutOutline: 'Toggle PDF Outline Drawer',
-    shortcutEditNotes: 'Edit Speaker Notes Inline',
+    shortcutToggleInk: 'Show / Hide Ink',
+    shortcutStats: 'Open Rehearsal Stats',
+    shortcutGrid: 'Open Slide Grid',
+    shortcutOutline: 'Open PDF Outline',
+    shortcutEditNotes: 'Edit Current Slide Notes',
 
-    helpFormatMarkdownTitle: 'Markdown Notes (--- / <!-- slide: N -->)',
+    helpFormatMarkdownTitle: 'Markdown (--- or <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      'Use --- between slides, or explicit <!-- slide: 2 --> markers with optional <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, endTime).',
-    helpFormatMarpTitle: 'Marp & Slidev Source Markdown',
+      'Separate slides with --- or explicit <!-- slide: 2 --> markers. Add <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, endTime) to configure the timer.',
+    helpFormatMarpTitle: 'Marp / Slidev Source .md',
     helpFormatMarpBody:
-      'Drop your .md source directly. Slide directives (paginate:, layout:, <!--fit-->) are ignored and HTML speaker comments are extracted per slide.',
-    helpFormatPdfpcTitle: '.pdfpc v2 & JSON',
+      'Slide formatting directives (paginate:, layout:, <!--fit-->) are removed and HTML speaker comments are assigned to each slide.',
+    helpFormatPdfpcTitle: '.pdfpc v2 & JSON Backup',
     helpFormatPdfpcBody:
-      'Compatible with pdfpc metadata exported by Typst Touying/Polylux scripts as well as Typst Presenter JSON backups.',
-    helpFormatEmbeddedTitle: 'Typst #pdf.attach & PDF Sticky/FreeText Notes',
+      'Loads .pdfpc metadata generated by Touying/Polylux scripts as well as exported Typst Presenter JSON files.',
+    helpFormatEmbeddedTitle: 'Typst #pdf.attach & PDF Annotations',
     helpFormatEmbeddedBody:
-      'Notes attached in PDF (Presio JSON, pdfpc attachments, or Text/FreeText annotations) are imported automatically on load.',
+      'Embedded Presio JSON, pdfpc attachments, and Text/FreeText PDF annotations are imported automatically when the PDF loads.',
 
     gridOverviewTitle: 'Slide Grid Overview (G)',
     outlineTitle: 'Outline / Table of Contents (O)',
-    noOutlineAvailable: 'No outline available in this PDF.',
+    noOutlineAvailable: 'No outline found in this PDF.',
     untitledSection: 'Untitled section',
 
     rehearsalTitle: 'Rehearsal Timing Analytics',
@@ -406,62 +436,71 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     exportReportCsv: 'Export Report (.csv)',
 
     audienceStandbyTitle: 'Typst Presenter — Audience Display',
-    audienceStandbySubtitle: 'Standby mode — Waiting for Presenter deck...',
+    audienceStandbySubtitle: 'Standby — Waiting for slides from Presenter Console...',
     fullscreenPrompt: 'Click or press F for Fullscreen',
 
     msgWatchStopped: 'Stopped watching PDF file.',
     msgNoEmbeddedNotes: 'No embedded notes found in this PDF.',
     msgUnsupportedDrop:
-      'Unsupported file format. Please drop a .pdf file or notes (.md, .markdown, .json, .pdfpc).',
+      'Unsupported file type. Drop a .pdf deck or notes file (.md, .markdown, .json, .pdfpc).',
     msgNotesNeedPdfFirst:
-      'Open a PDF first, or drag & drop a PDF and notes file together.',
+      'Open a PDF first, or drop a PDF and notes file together.',
     msgSidecarNoNotesFound:
-      'No speaker notes were found in that file. Existing notes were preserved.',
+      'No speaker notes found in that file; existing notes were kept.',
     msgAudienceOpenFailed: 'Error: Failed to open Audience display window.',
     msgStoredDeckMissing: 'Error: Stored deck is no longer available.',
-    msgEmptyPdf: 'Error: Invalid or empty PDF file (0 bytes).',
+    msgEmptyPdf: 'Error: Empty or invalid PDF file (0 bytes).',
   },
 
   ja: {
     appTitle: 'Typst Presenter',
     openPdf: 'PDFを開く',
+    sampleShortBtn: 'サンプル',
     loadSampleDeck: 'サンプル読込',
-    recentDecksBtn: '最近の資料',
-    watchPdf: 'PDF監視',
-    stopWatch: '監視停止',
+    recentDecksBtn: '履歴',
+    recentDecksTooltip: '最近開いた資料一覧へ戻る',
+    watchPdf: '監視',
+    watchPdfTooltip: 'PDF ファイルの変更を自動再読込する（Chromium 系ブラウザ）',
+    stopWatch: '監視中',
     defaultDisplay: '既定ディスプレイ',
     primaryTag: '[メイン]',
     displaysBtn: '画面更新',
     refreshDisplaysAria: 'ディスプレイ一覧を更新',
+    audienceShortBtn: '聴衆画面',
     launchAudienceWindow: '聴衆ウィンドウを開く',
-    audienceConnected: '聴衆画面 接続中',
-    audienceDisconnected: '聴衆画面 未接続',
+    audienceConnected: '接続中',
+    audienceDisconnected: '未接続',
     prev: '前へ',
     next: '次へ',
-    cropFull: '全体',
+    prevSlideTooltip: '前へ (←)',
+    nextSlideTooltip: '次へ (→)',
+    cropFull: '全体表示',
     cropSplitHorizontal: '左右分割 L|R',
     cropSplitVertical: '上下分割 T|B',
-    swapHalves: '左右/上下入替',
+    swapHalves: '分割の左右/上下を入替',
     blackoutBtn: '黒画面 (B)',
     whiteoutBtn: '白画面 (W)',
     freezeBtn: '画面固定 (F)',
     laserBtn: 'レーザー (L)',
     penBtn: 'ペン (D)',
-    spotlightBtn: 'スポット (S)',
-    spotMinus: '縮小 -',
-    spotPlus: '拡大 +',
-    penMinus: '細く -',
-    penPlus: '太く +',
-    undoBtn: '戻す',
-    clearInkBtn: '描線消去 (C)',
-    inkBtn: '描線表示 (H)',
-    guardBtn: '誤操作防止',
-    statsBtn: '計測分析 (R)',
-    gridBtn: '一覧 (G)',
-    outlineBtn: '目次 (O)',
-    helpBtn: 'ヘルプ (?)',
+    spotlightBtn: 'スポットライト (S)',
+    spotMinus: 'スポット縮小 ([)',
+    spotPlus: 'スポット拡大 (])',
+    penMinus: 'ペン細く (-)',
+    penPlus: 'ペン太く (+)',
+    undoBtn: '描線を1つ戻す',
+    clearInkBtn: '描線を消去 (C)',
+    inkBtn: '描線の表示切替 (H)',
+    guardBtn: '誤リロード防止',
+    statsBtn: 'リハーサル分析 (R)',
+    gridBtn: 'スライド一覧 (G)',
+    gridAria: '一覧サムネイル (G)',
+    outlineBtn: '目次アウトライン (O)',
+    helpBtn: 'ヘルプ・ショートカット (?)',
     quickGuideBtn: '使い方ガイド (?)',
     localeToggleTitle: '表示言語を切替 (JP / EN)',
+    themeToLight: 'ライトモードへ切替',
+    themeToDark: 'ダークモードへ切替',
     dismiss: '閉じる',
     close: '閉じる',
     closeEsc: '閉じる (Esc)',
@@ -469,26 +508,26 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     popupBlockedPrefix: 'ポップアップがブロックされました。次の URL を手動で開いてください:',
     copyUrl: 'URL をコピー',
     splitDetectedMessage:
-      'Touying 等の横長分割 PDF（縦横比 > 2.4）を検出しました。左右分割 (Split L|R) を適用しますか？',
+      '横長分割 PDF（縦横比 2.4 超）を検出しました。左右分割 (Split L|R) を適用しますか？',
     applySplitLR: '左右分割を適用',
     blackoutActive: '黒画面中 (B)',
     whiteoutActive: '白画面中 (W)',
 
     onboardingDropTitle: 'Typst Presenter',
-    onboardingDropDesc: 'ここにスライド PDF をドラッグ＆ドロップ、またはクリックして選択',
+    onboardingDropDesc: 'スライド PDF をここへドロップ、またはクリックして選択します。',
     onboardingSupports:
-      'Typst / Marp / Beamer / PowerPoint 出力 PDF、Markdown・pdfpc ノート、2画面同期に対応',
+      'Typst / Marp / Beamer / PowerPoint 出力 PDF、Markdown・pdfpc ノート、ローカル2画面同期に対応',
     choosePdfFile: 'PDF ファイルを選択',
     recentDecksTitle: '最近開いた資料',
     openRecent: '開く',
     deleteRecent: '削除',
-    quickStartHeading: 'クイックスタート（3ステップ）',
-    quickStartStep1Title: '1. PDF を読み込む',
-    quickStartStep1Desc: 'PDF とノートを同時ドロップ、または「サンプル読込」でお試し。',
-    quickStartStep2Title: '2. ノート・目安を設定',
-    quickStartStep2Desc: 'Import Notes から .md / Marp / .pdfpc 取込、または E キーで編集。',
-    quickStartStep3Title: '3. 2画面で発表',
-    quickStartStep3Desc: '「聴衆ウィンドウを開く」で外部出力。レーザー(L)・スポット(S)対応。',
+    quickStartHeading: 'クイックスタート',
+    quickStartStep1Title: '1. 資料を読み込む',
+    quickStartStep1Desc: 'PDF（ノート同時可）をドロップするか、「サンプル読込」を押します。',
+    quickStartStep2Title: '2. ノートと目安時間を準備',
+    quickStartStep2Desc: '.md・Marp・.pdfpc・PDF注釈の取込、または E キーで直接編集します。',
+    quickStartStep3Title: '3. 2画面で発表を開始',
+    quickStartStep3Desc: '「聴衆画面」で投影ウィンドウを開き、L でレーザー・S でスポットが使えます。',
 
     nextSlide: '次のスライド',
     slideLabel: 'スライド',
@@ -510,40 +549,46 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     speakerNotesTitle: '発表者ノート',
     targetLabel: '目標',
     secondsUnit: '秒',
+    fontDecreaseTooltip: '文字サイズ縮小 (A-)',
+    fontIncreaseTooltip: '文字サイズ拡大 (A+)',
     editNotesBtn: 'ノート編集 (E)',
     saveNotesBtn: '保存',
     importNotesBtn: 'ノート取込',
     importEmbeddedBtn: '埋込ノート取込',
+    exportNotesBtn: 'エクスポート',
+    exportMdItem: 'Markdown (.md)',
+    exportJsonItem: 'JSON (.json)',
+    exportPdfpcItem: 'pdfpc (.pdfpc)',
     exportMdBtn: 'Export .md',
     exportJsonBtn: 'Export .json',
     exportPdfpcBtn: 'Export .pdfpc',
     notesEditorPlaceholder: 'このスライドの発表者ノートを Markdown で入力...',
     noNotesPlaceholder: 'このスライドにはまだ発表者ノートがありません。',
     quickImportHintBtn: 'ノートを取り込む...',
-    quickEditHintBtn: 'ノートを編集 (E)',
+    quickEditHintBtn: 'ノートを書く (E)',
 
     notesImportTitle: '発表者ノートのインポート',
-    notesImportSubtitle: '外部スクリプトファイルの読み込み、または PDF 埋め込みノートを抽出します。',
-    notesDropzoneTitle: 'ここにノートファイルをドロップ (.md, .markdown, .json, .pdfpc)',
-    notesDropzoneHint: '画面全体へ PDF とノートファイルを同時にドロップして読み込むこともできます。',
+    notesImportSubtitle: '原稿ファイルを取り込むか、PDF 内の埋め込みノートを抽出します。',
+    notesDropzoneTitle: 'ノートファイルをここへドロップ (.md, .markdown, .json, .pdfpc)',
+    notesDropzoneHint: 'PDF とノートファイルを同時に画面へドロップしてまとめて読み込むこともできます。',
     chooseNotesFile: 'ノートファイルを選択',
     importEmbeddedSectionTitle: 'PDF 埋め込みノート（#pdf.attach / PDF 注釈）',
     importEmbeddedReadyDesc: '現在の PDF から埋め込みノートが検出されています。',
-    importEmbeddedNoneDesc: '自動検出された埋め込みノートはありません（再スキャンも可能です）。',
-    formatGuideTitle: '対応フォーマットと記法',
+    importEmbeddedNoneDesc: '自動検出された埋め込みノートはありません（再スキャンできます）。',
+    formatGuideTitle: '対応フォーマット',
     formatBulletMarkdown:
-      'Markdown (---): --- でページ区切り、または <!-- slide: 1 --> でページ指定します。',
+      'Markdown: --- でページ区切り、または <!-- slide: 1 --> でページ番号を指定します。',
     formatBulletExplicit:
-      'スライド目標秒数: <!-- target: 45 --> を書くとタイマーの目標秒数に反映されます。',
+      '目標秒数: ノート内に <!-- target: 45 --> を書くと、タイマー目安に反映されます。',
     formatBulletMarpSlidev:
-      'Marp / Slidev .md: 原稿 .md をそのまま読込可能（ディレクティブを自動除外しコメントを抽出）。',
+      'Marp / Slidev .md: 書式指定を除外し、HTML コメント部分をスライド別に抽出します。',
     formatBulletPdfpc:
-      'JSON / .pdfpc: pdfpc v2 形式や本アプリで Export した JSON ファイルを読み込めます。',
+      'JSON / .pdfpc: pdfpc v2 ファイルと、本アプリで書き出した JSON をそのまま読み込めます。',
     formatBulletPairDrop:
-      '同時ドロップ: slides.pdf と notes.md を選択してまとめてドロップできます。',
+      '同時ドロップ: slides.pdf と notes.md を選択して一度にドロップできます。',
     copyTemplateBtn: '.md テンプレートをコピー',
-    copiedTemplateBtn: 'コピーしました！',
-    downloadTemplateBtn: 'テンプレートを保存 (.md)',
+    copiedTemplateBtn: 'コピーしました',
+    downloadTemplateBtn: '.md テンプレートを保存',
 
     helpModalTitle: '使い方ガイド ＆ ショートカット (?)',
     helpTabQuickStart: '使い方',
@@ -551,47 +596,47 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     helpTabFormats: 'ノート書式',
     helpQuickStep1Title: '1. スライド PDF を開く',
     helpQuickStep1Body:
-      '「PDFを開く」またはドラッグ＆ドロップで読み込みます（縦型・混在サイズ・Touying 分割にも対応）。Chromium 系では「PDF監視」で typst watch と自動連動します。',
-    helpQuickStep2Title: '2. スクリプトと目標時間を設定',
+      'PDF を選択またはドロップします（縦型・混在サイズ・Touying 分割に対応）。Chromium 系ブラウザでは「監視」で typst watch と連動し自動再読込できます。',
+    helpQuickStep2Title: '2. ノートと目標時間を設定',
     helpQuickStep2Body:
-      '「ノート取込」から Markdown / Marp / Slidev / .pdfpc / #pdf.attach を取り込むか、E キーでその場編集できます。',
-    helpQuickStep3Title: '3. 聴衆ウィンドウを外部画面へ配置',
+      'ノート欄の取込ボタンから .md・Marp・Slidev・.pdfpc・PDF注釈を読み込むか、E キーで編集します。<!-- target: 45 --> でスライド別秒数を設定できます。',
+    helpQuickStep3Title: '3. 聴衆ウィンドウを外部画面へ表示',
     helpQuickStep3Body:
-      '「聴衆ウィンドウを開く」を押し、プロジェクター側で F キーまたはダブルクリックで全画面化します。同じブラウザ内でオフライン低遅延同期します。',
-    helpQuickStep4Title: '4. 発表中のポインター ＆ リハーサル分析',
+      '上部の「聴衆画面」で別ウィンドウを開き、投影先へ移動して F キーまたはダブルクリックで全画面化します。状態はローカルで同期・保存されます。',
+    helpQuickStep4Title: '4. 発表中のポインターと分析',
     helpQuickStep4Body:
-      'レーザー (L)、ペン (D)、スポットライト (S：クリック固定・ホイール / [ ] でサイズ調整)、黒/白カーテン (B/W)、静止 (F)、計測分析 (R) が使えます。',
+      'レーザー (L)、ペン (D)、スポットライト (S：クリックで固定・ホイールや [ ] で拡縮)、黒/白カーテン (B/W)、画面固定 (F)、分析モーダル (R) を使えます。',
 
     shortcutNav: '次のスライド / 前のスライド',
-    shortcutJump: '番号入力でスライドへ直接ジャンプ',
-    shortcutBlackout: '黒画面 (Blackout) の切替',
-    shortcutWhiteout: '白画面 (Whiteout) の切替',
-    shortcutFreeze: '聴衆画面の一時固定 (Freeze)',
+    shortcutJump: '番号入力でスライドへジャンプ',
+    shortcutBlackout: '黒画面カーテンの切替',
+    shortcutWhiteout: '白画面カーテンの切替',
+    shortcutFreeze: '聴衆画面の一時固定（手元だけ移動）',
     shortcutLaser: 'レーザーポインターの切替',
-    shortcutPen: 'フリーハンドペンの切替（+/- で太さ調整）',
-    shortcutSpotlight: 'スポットライト（クリック固定、ホイール / [ ] でサイズ変更）',
+    shortcutPen: 'フリーハンドペンの切替（+ / - で太さ調整）',
+    shortcutSpotlight: 'スポットライト（クリック固定・ホイール / [ ] でサイズ変更）',
     shortcutClearInk: '現在のスライドの描線を消去',
     shortcutToggleInk: '描線の表示 / 非表示を切替',
-    shortcutStats: 'リハーサル時間分析 (Stats) を開く',
-    shortcutGrid: 'スライド一覧グリッド (Grid) を開く',
-    shortcutOutline: 'PDF 見出しアウトライン (Outline) を開く',
+    shortcutStats: 'リハーサル時間分析を開く',
+    shortcutGrid: 'スライド一覧グリッドを開く',
+    shortcutOutline: 'PDF 見出しアウトラインを開く',
     shortcutEditNotes: '発表者ノートを編集',
 
     helpFormatMarkdownTitle: 'Markdown ノート (--- / <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      '--- でスライド区切り、または <!-- slide: 2 --> と <!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・endTime）を指定できます。',
+      '--- でスライドを区切るか、<!-- slide: 2 --> でページを指定します。<!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・endTime）も認識します。',
     helpFormatMarpTitle: 'Marp / Slidev 原稿 Markdown',
     helpFormatMarpBody:
-      '.md ソースをそのまま取り込めます。paginate:・layout:・<!--fit--> 等の設定を除外し、ノートコメントのみを抽出します。',
-    helpFormatPdfpcTitle: '.pdfpc v2 ＆ JSON バックアップ',
+      '.md 原稿をそのまま読み込めます。paginate:・layout:・<!--fit--> などの設定行を除き、ノートコメントのみを抽出します。',
+    helpFormatPdfpcTitle: '.pdfpc v2 と JSON バックアップ',
     helpFormatPdfpcBody:
-      'Touying / Polylux が出力する `.pdfpc` ファイルや、本アプリから Export した `.json` ファイルを読み込めます。',
-    helpFormatEmbeddedTitle: 'Typst #pdf.attach ＆ PDF 注釈',
+      'Touying や Polylux 用の .pdfpc ファイルと、本アプリから書き出した JSON ファイルを読み込めます。',
+    helpFormatEmbeddedTitle: 'Typst #pdf.attach と PDF 注釈',
     helpFormatEmbeddedBody:
-      'PDF に添付された Presio / pdfpc ノートや、PDF 内のテキスト・フリーテキスト注釈を自動抽出します。',
+      'PDF に添付された Presio / pdfpc ノート、およびテキスト注釈・フリーテキスト注釈を読込時に自動で抽出します。',
 
-    gridOverviewTitle: 'スライド一覧グリッド (G)',
-    outlineTitle: '目次 / アウトライン (O)',
+    gridOverviewTitle: 'スライド一覧 (G)',
+    outlineTitle: '目次アウトライン (O)',
     noOutlineAvailable: 'この PDF には見出しアウトラインがありません。',
     untitledSection: '無題のセクション',
 
@@ -604,26 +649,26 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     visitedSlides: '訪問スライド',
     coverageSuffix: '% 到達',
     noTimingData: 'まだスライド滞在時間の記録がありません。',
-    visitSingular: '回訪問',
-    visitPlural: '回訪問',
+    visitSingular: '回',
+    visitPlural: '回',
     applyActualAsTargets: '実測値を目標時間へ反映',
     exportReportMd: 'レポート保存 (.md)',
     exportReportCsv: 'レポート保存 (.csv)',
 
     audienceStandbyTitle: 'Typst Presenter — 聴衆用ディスプレイ',
-    audienceStandbySubtitle: '待機中 — 発表者画面からのスライド読込を待っています...',
-    fullscreenPrompt: 'クリックまたは F キーで全画面表示',
+    audienceStandbySubtitle: '待機中 — 発表者画面でスライドが開かれると表示されます。',
+    fullscreenPrompt: 'クリックまたは F キーで全画面',
 
     msgWatchStopped: 'PDF ファイルの監視を停止しました。',
     msgNoEmbeddedNotes: 'この PDF には埋め込みノートが見つかりませんでした。',
     msgUnsupportedDrop:
-      '未対応のファイル形式です。.pdf またはノートファイル (.md, .markdown, .json, .pdfpc) をドロップしてください。',
+      '未対応の形式です。.pdf またはノートファイル (.md, .markdown, .json, .pdfpc) をドロップしてください。',
     msgNotesNeedPdfFirst:
       '先に PDF を開くか、PDF とノートファイルを同時にドロップしてください。',
     msgSidecarNoNotesFound:
-      'このファイルからは発表者ノートを検出できませんでした（既存のノートは保持されました）。',
-    msgAudienceOpenFailed: 'エラー: 聴衆用ディスプレイウィンドウを開けませんでした。',
-    msgStoredDeckMissing: 'エラー: 保存されていた資料が見つかりませんでした。',
+      'ノートを検出できなかったため、既存のノートを保持しました。',
+    msgAudienceOpenFailed: 'エラー: 聴衆用ウィンドウを開けませんでした。',
+    msgStoredDeckMissing: 'エラー: 保存されていた資料を読み込めませんでした。',
     msgEmptyPdf: 'エラー: 空の PDF ファイル (0 bytes) です。',
   },
 };

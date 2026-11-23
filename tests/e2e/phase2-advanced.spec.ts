@@ -119,7 +119,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
 
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.pen);
-    await expect(page.getByRole('button', { name: 'Pen', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /^Pen \(/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -209,7 +209,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.next);
     await expect(async () => {
-      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 6 });
+      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 8 });
     }).toPass({ timeout: 5_000 });
     await page.waitForTimeout(1_200);
 
@@ -219,7 +219,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
 
     const modal = page.getByTestId('rehearsal-stats-modal');
     await expect(modal).toBeVisible({ timeout: 5_000 });
-    await expect(modal.getByTestId('rehearsal-slides-visited')).toHaveText('2 / 6');
+    await expect(modal.getByTestId('rehearsal-slides-visited')).toHaveText('2 / 8');
 
     await expect(async () => {
       const totalText = await modal.getByTestId('rehearsal-total-actual').innerText();
@@ -358,7 +358,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
     const openBtn = recentSection.locator('[data-testid^="open-recent-"]').first();
     await openBtn.click();
     await waitForDeckLoaded(page);
-    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 6 });
+    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 8 });
 
     // Return to onboarding and delete the deck from Recent Decks
     await page.getByTestId('close-deck-button').click();
@@ -482,7 +482,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
     const audStage = getAudienceStageContainer(audiencePage);
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.spotlight);
-    await expect(page.getByRole('button', { name: 'Spotlight', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /^Spotlight \(/i })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -507,7 +507,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
 
     // Turn off spotlight and add a speaker note on page 1 before hot-reload
     await pressShortcut(page, SHORTCUTS.spotlight);
-    await expect(page.getByRole('button', { name: 'Spotlight', exact: true })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: /^Spotlight \(/i })).toHaveAttribute(
       'aria-pressed',
       'false',
     );

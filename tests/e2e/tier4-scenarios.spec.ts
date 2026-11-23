@@ -378,7 +378,7 @@ test.describe('Tier 4 — Real-World Application Scenarios', () => {
     await pressShortcut(page, SHORTCUTS.outline);
     await page.getByText(/まとめ/).first().click();
     await expect(async () => {
-      expect(await getSlideCounter(page)).toEqual({ current: 6, total: 6 });
+      expect(await getSlideCounter(page)).toEqual({ current: 8, total: 8 });
     }).toPass({ timeout: 5_000 });
 
     await focusSlideStage(page);
@@ -388,11 +388,11 @@ test.describe('Tier 4 — Real-World Application Scenarios', () => {
       .first();
     const thumbs = gridDialog.locator('canvas');
     await expect(async () => {
-      expect(await thumbs.count()).toBe(6);
+      expect(await thumbs.count()).toBe(8);
       expect(await getCanvasNonBlank(page, thumbs.nth(0))).toBe(true);
     }).toPass({ timeout: 10_000 });
     await thumbs.nth(0).click();
-    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 6 });
+    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 8 });
 
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.laser);

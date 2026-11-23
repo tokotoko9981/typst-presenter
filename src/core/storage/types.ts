@@ -41,4 +41,5 @@ export interface PresenterPrefs {
   spotlightRadius: number;
   activeDeckId: string | null;
   locale?: 'ja' | 'en';
+  theme?: 'dark' | 'light';
 }

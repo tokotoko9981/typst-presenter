@@ -1,4 +1,41 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeftRight,
+  BarChart3,
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Crosshair,
+  Download,
+  Eye,
+  EyeOff,
+  Focus,
+  FolderOpen,
+  History,
+  LayoutGrid,
+  ListTree,
+  Minus,
+  Monitor,
+  MonitorOff,
+  Moon,
+  Paperclip,
+  Pencil,
+  PenTool,
+  Plus,
+  Presentation,
+  Radio,
+  RefreshCw,
+  Shield,
+  ShieldCheck,
+  Snowflake,
+  Sun,
+  Trash2,
+  Undo2,
+  Upload,
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { SlideStage } from '../../components/SlideStage.tsx';
 import { ThumbnailCanvas } from '../../components/ThumbnailCanvas.tsx';
@@ -9,6 +46,7 @@ import {
 } from '../../core/files/FileWatchService.ts';
 import type { WatchStatus } from '../../core/files/FileWatchService.ts';
 import { useI18n } from '../../core/i18n/I18nContext.tsx';
+import { useTheme } from '../../core/theme/ThemeContext.tsx';
 import {
   createEmptyNotesBundle,
   exportNotesToJson,
@@ -123,6 +161,7 @@ function formatWallClock(nowMs: number): string {
 
 export function PresenterConsole() {
   const { locale, toggleLocale, t } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const [sessionId] = useState<string>(() => getOrCreateSessionId());
   const engineRef = useRef<PdfEngine | null>(null);
   const syncBridgeRef = useRef<SyncBridge | null>(null);
@@ -130,6 +169,7 @@ export function PresenterConsole() {
   const rehearsalTrackerRef = useRef(new RehearsalTracker());
   const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const sidecarFileInputRef = useRef<HTMLInputElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const digitBufferRef = useRef<string>('');
   const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastStageHoverRef = useRef<NormalizedPoint | null>(null);
@@ -211,6 +251,27 @@ export function PresenterConsole() {
     'none' | 'grid' | 'outline' | 'help' | 'stats' | 'notes-import'
   >('none');
   const [helpInitialTab, setHelpInitialTab] = useState<HelpModalTab>('shortcuts');
+  const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExportMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      window.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [exportMenuOpen]);
 
   // Keep latest state in refs for async / SyncBridge / FileWatch callbacks
   const notesBundleRef = useRef<DeckNotesBundle | null>(notesBundle);
@@ -1029,6 +1090,7 @@ export function PresenterConsole() {
     setMeta(null);
     setNotesBundle(null);
     setIsEditingNotes(false);
+    setExportMenuOpen(false);
     setActiveModal('none');
     setInfoMessage(null);
     setErrorMessage(null);
@@ -1804,6 +1866,11 @@ export function PresenterConsole() {
     }
   };
 
+  const iconBtnClass =
+    'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white';
+  const toolbarBtnClass =
+    'inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-slate-200 bg-slate-100 px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white';
+
   const renderOutlineNodes = (nodes: OutlineNode[], depth = 0) => {
     return nodes.map((node, idx) => (
       <div key={`${depth}-${idx}-${node.title}`} className="flex flex-col">
@@ -1816,11 +1883,13 @@ export function PresenterConsole() {
             }
           }}
           style={{ paddingLeft: `${12 + depth * 16}px` }}
-          className="flex w-full items-center justify-between rounded py-1.5 pr-3 text-left text-sm text-slate-200 hover:bg-slate-800"
+          className="flex w-full items-center justify-between rounded py-1.5 pr-3 text-left text-sm text-slate-800 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           <span className="truncate">{node.title || t.untitledSection}</span>
           {node.pageNumber && (
-            <span className="ml-2 shrink-0 text-xs text-slate-400">p.{node.pageNumber}</span>
+            <span className="ml-2 shrink-0 text-xs text-slate-500 dark:text-slate-400">
+              p.{node.pageNumber}
+            </span>
           )}
         </button>
         {node.items && node.items.length > 0 && renderOutlineNodes(node.items, depth + 1)}
@@ -1836,7 +1905,7 @@ export function PresenterConsole() {
         e.stopPropagation();
       }}
       onDrop={handleDrop}
-      className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 text-slate-100"
+      className="flex h-screen w-screen flex-col overflow-hidden bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100"
     >
       {/* Hidden persistent file inputs for PDF & Sidecar uploads */}
       <input
@@ -1856,438 +1925,562 @@ export function PresenterConsole() {
         className="sr-only"
       />
 
-      {/* Top Toolbar */}
+      {/* Top Toolbar: Fixed 2-Row Layout (Zero Height Drift Across JP/EN & Light/Dark) */}
       <header
         role="toolbar"
         aria-label="Presenter controls"
-        className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 bg-slate-900 px-3 py-2 text-xs"
+        className="flex shrink-0 flex-col border-b border-slate-200 bg-white text-xs text-slate-900 select-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-bold tracking-tight text-white">{t.appTitle}</span>
+        {/* Row 1: Files, Monitors, Audience & Global Toggles */}
+        <div className="flex h-10 flex-nowrap items-center justify-between gap-2 border-b border-slate-200/80 px-3 dark:border-slate-800/80">
+          <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+            <span className="mr-1 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
+              {t.appTitle}
+            </span>
 
-          <button
-            type="button"
-            onClick={() => pdfFileInputRef.current?.click()}
-            className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
-          >
-            {t.openPdf}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLoadSampleDeck}
-            className="rounded bg-blue-600 px-2.5 py-1 font-medium text-white hover:bg-blue-500"
-          >
-            {t.loadSampleDeck}
-          </button>
-
-          {meta && (
             <button
               type="button"
-              data-testid="close-deck-button"
-              onClick={() => void handleCloseDeck()}
-              className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
+              onClick={() => pdfFileInputRef.current?.click()}
+              title={t.openPdf}
+              aria-label={t.openPdf}
+              className={toolbarBtnClass}
             >
-              {t.recentDecksBtn}
+              <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{t.openPdf}</span>
             </button>
-          )}
 
-          {fsAccessSupported && (
             <button
               type="button"
-              data-testid="watch-pdf-button"
-              aria-pressed={pdfWatchStatus.active}
-              onClick={() => void handleToggleWatchPdf()}
-              className={`rounded px-2.5 py-1 font-medium ${
-                pdfWatchStatus.active
-                  ? 'bg-amber-600 text-white hover:bg-amber-500'
-                  : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+              onClick={handleLoadSampleDeck}
+              title={t.loadSampleDeck}
+              aria-label={t.loadSampleDeck}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded bg-blue-600 px-2.5 text-xs font-medium text-white transition hover:bg-blue-500"
+            >
+              <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{t.sampleShortBtn}</span>
+            </button>
+
+            {meta && (
+              <button
+                type="button"
+                data-testid="close-deck-button"
+                title={t.recentDecksTooltip}
+                aria-label={t.recentDecksTooltip}
+                onClick={() => void handleCloseDeck()}
+                className={toolbarBtnClass}
+              >
+                <History className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>{t.recentDecksBtn}</span>
+              </button>
+            )}
+
+            {fsAccessSupported && (
+              <button
+                type="button"
+                data-testid="watch-pdf-button"
+                aria-pressed={pdfWatchStatus.active}
+                title={
+                  pdfWatchStatus.active
+                    ? `${t.stopWatch}: ${pdfWatchStatus.fileName ?? 'PDF'}`
+                    : t.watchPdfTooltip
+                }
+                aria-label={pdfWatchStatus.active ? t.stopWatch : t.watchPdf}
+                onClick={() => void handleToggleWatchPdf()}
+                className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded border px-2.5 text-xs font-medium transition ${
+                  pdfWatchStatus.active
+                    ? 'border-amber-500 bg-amber-600 text-white hover:bg-amber-500'
+                    : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
+                }`}
+              >
+                <Radio className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>{pdfWatchStatus.active ? t.stopWatch : t.watchPdf}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex shrink-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+            {(tauriMode || monitors.length > 0) && (
+              <select
+                data-testid="monitor-select"
+                aria-label="Target display"
+                value={selectedMonitorIndex !== undefined ? String(selectedMonitorIndex) : ''}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setSelectedMonitorIndex(raw === '' ? undefined : Number.parseInt(raw, 10));
+                }}
+                className="h-7 w-[148px] truncate rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                {monitors.length === 0 ? (
+                  <option value="">{t.defaultDisplay}</option>
+                ) : (
+                  monitors.map((m) => (
+                    <option key={m.index} value={m.index}>
+                      {m.name} ({m.width}x{m.height}){m.isPrimary ? ` ${t.primaryTag}` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            )}
+
+            {(tauriMode || monitors.length > 0 || webScreenDetailsSupported) && (
+              <button
+                type="button"
+                data-testid="refresh-monitors-button"
+                aria-label={t.refreshDisplaysAria}
+                title={t.refreshDisplaysAria}
+                onClick={() => void refreshMonitors()}
+                className={iconBtnClass}
+              >
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+
+            <button
+              type="button"
+              title={t.launchAudienceWindow}
+              aria-label={t.launchAudienceWindow}
+              onClick={() => void handleLaunchAudienceWindow()}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded bg-emerald-600 px-2.5 text-xs font-medium text-white transition hover:bg-emerald-500"
+            >
+              <Presentation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{t.audienceShortBtn}</span>
+            </button>
+
+            <span
+              data-testid="audience-status"
+              className={`inline-flex h-7 w-[108px] shrink-0 items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-medium ${
+                audienceConnected
+                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-300'
+                  : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
               }`}
             >
-              {pdfWatchStatus.active
-                ? `${t.stopWatch} (${pdfWatchStatus.fileName ?? 'PDF'})`
-                : t.watchPdf}
-            </button>
-          )}
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 shrink-0 rounded-full ${
+                  audienceConnected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-500'
+                }`}
+              />
+              <span>{audienceConnected ? t.audienceConnected : t.audienceDisconnected}</span>
+            </span>
 
-          {(tauriMode || monitors.length > 0) && (
-            <select
-              data-testid="monitor-select"
-              aria-label="Target display"
-              value={selectedMonitorIndex !== undefined ? String(selectedMonitorIndex) : ''}
-              onChange={(e) => {
-                const raw = e.target.value;
-                setSelectedMonitorIndex(raw === '' ? undefined : Number.parseInt(raw, 10));
-              }}
-              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-slate-200"
-            >
-              {monitors.length === 0 ? (
-                <option value="">{t.defaultDisplay}</option>
-              ) : (
-                monitors.map((m) => (
-                  <option key={m.index} value={m.index}>
-                    {m.name} ({m.width}x{m.height}){m.isPrimary ? ` ${t.primaryTag}` : ''}
-                  </option>
-                ))
-              )}
-            </select>
-          )}
+            <div
+              aria-hidden="true"
+              className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700"
+            />
 
-          {(tauriMode || monitors.length > 0 || webScreenDetailsSupported) && (
             <button
               type="button"
-              data-testid="refresh-monitors-button"
-              aria-label={t.refreshDisplaysAria}
-              title={t.refreshDisplaysAria}
-              onClick={() => void refreshMonitors()}
-              className="rounded bg-slate-800 px-2 py-1 font-medium text-slate-200 hover:bg-slate-700"
+              data-testid="theme-toggle"
+              aria-label={theme === 'dark' ? t.themeToLight : t.themeToDark}
+              title={theme === 'dark' ? t.themeToLight : t.themeToDark}
+              onClick={toggleTheme}
+              className={iconBtnClass}
             >
-              {t.displaysBtn}
+              {theme === 'dark' ? (
+                <Sun className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 text-slate-700" aria-hidden="true" />
+              )}
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={() => void handleLaunchAudienceWindow()}
-            className="rounded bg-emerald-600 px-2.5 py-1 font-medium text-white hover:bg-emerald-500"
-          >
-            {t.launchAudienceWindow}
-          </button>
+            <button
+              type="button"
+              data-testid="locale-toggle"
+              title={t.localeToggleTitle}
+              aria-label={t.localeToggleTitle}
+              onClick={toggleLocale}
+              className="inline-flex h-7 w-[56px] shrink-0 items-center justify-center rounded border border-slate-300 bg-slate-100 px-1.5 font-mono text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              <span className={locale === 'ja' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}>
+                JP
+              </span>
+              <span className="mx-0.5 text-slate-400 dark:text-slate-500">/</span>
+              <span className={locale === 'en' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}>
+                EN
+              </span>
+            </button>
 
-          <span
-            data-testid="audience-status"
-            className={`inline-block min-w-[146px] rounded px-2 py-0.5 text-center text-[11px] font-medium ${
-              audienceConnected
-                ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50'
-                : 'bg-slate-800 text-slate-400 border border-slate-700'
-            }`}
-          >
-            {audienceConnected ? t.audienceConnected : t.audienceDisconnected}
-          </span>
+            <button
+              type="button"
+              aria-label={t.helpBtn}
+              title={t.helpBtn}
+              onClick={() => {
+                setHelpInitialTab('shortcuts');
+                setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
+              }}
+              className={iconBtnClass}
+            >
+              <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
         </div>
 
-        {/* Slide navigation & counter */}
-        {meta && (
-          <div className="flex items-center gap-1.5">
+        {/* Row 2: Slide Navigation, Stage Controls, Annotation Tools & View Modals */}
+        <div className="flex h-9 flex-nowrap items-center justify-between gap-2 px-3">
+          {/* Left: Slide navigation & counter */}
+          <div className="flex h-7 min-w-[146px] shrink-0 flex-nowrap items-center gap-1">
+            {meta && (
+              <>
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  aria-label={t.prevSlideTooltip}
+                  title={t.prevSlideTooltip}
+                  onClick={() => navigateToSlide(currentPage - 1)}
+                  className={iconBtnClass}
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
+
+                <div
+                  data-testid="slide-counter"
+                  className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-xs text-slate-700 dark:border-slate-700/70 dark:bg-slate-950 dark:text-slate-200"
+                >
+                  <input
+                    type="number"
+                    aria-label="Jump to slide"
+                    min={1}
+                    max={meta.numPages}
+                    value={jumpInputText}
+                    onChange={(e) => setJumpInputText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitSlideJump(jumpInputText);
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={() => commitSlideJump(jumpInputText)}
+                    className="w-10 rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <span>/ {meta.numPages}</span>
+                  <span className="sr-only">
+                    {currentPage} / {meta.numPages}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= meta.numPages}
+                  aria-label={t.nextSlideTooltip}
+                  title={t.nextSlideTooltip}
+                  onClick={() => navigateToSlide(currentPage + 1)}
+                  className={iconBtnClass}
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Center: Crop, Curtains & Pointer/Ink tools */}
+          <div className="flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap">
+            <select
+              aria-label="Crop mode"
+              data-testid="crop-mode-select"
+              value={cropMode}
+              onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
+              className="h-7 w-[112px] rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              <option value="full">{t.cropFull}</option>
+              <option value="split-horizontal">{t.cropSplitHorizontal}</option>
+              <option value="split-vertical">{t.cropSplitVertical}</option>
+            </select>
+
             <button
               type="button"
-              disabled={currentPage <= 1}
-              onClick={() => navigateToSlide(currentPage - 1)}
-              className="rounded bg-slate-800 px-2 py-1 hover:bg-slate-700 disabled:opacity-40"
+              aria-label={t.swapHalves}
+              title={t.swapHalves}
+              disabled={cropMode === 'full'}
+              onClick={handleToggleSwapSplit}
+              className={iconBtnClass}
             >
-              {t.prev}
+              <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
 
             <div
-              data-testid="slide-counter"
-              className="flex items-center gap-1 rounded bg-slate-950 px-2 py-0.5 font-mono text-xs"
+              aria-hidden="true"
+              className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700"
+            />
+
+            <button
+              type="button"
+              aria-label={t.blackoutBtn}
+              title={t.blackoutBtn}
+              aria-pressed={curtainMode === 'black'}
+              onClick={() => handleToggleCurtain('black')}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                curtainMode === 'black'
+                  ? 'border-amber-500 bg-amber-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
             >
-              <input
-                type="number"
-                aria-label="Jump to slide"
-                min={1}
-                max={meta.numPages}
-                value={jumpInputText}
-                onChange={(e) => setJumpInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitSlideJump(jumpInputText);
-                    (e.currentTarget as HTMLInputElement).blur();
-                  }
-                }}
-                onBlur={() => commitSlideJump(jumpInputText)}
-                className="w-12 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-center text-slate-100"
-              />
-              <span>/ {meta.numPages}</span>
-              <span className="sr-only">
-                {currentPage} / {meta.numPages}
-              </span>
+              <MonitorOff className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              aria-label={t.whiteoutBtn}
+              title={t.whiteoutBtn}
+              aria-pressed={curtainMode === 'white'}
+              onClick={() => handleToggleCurtain('white')}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                curtainMode === 'white'
+                  ? 'border-amber-500 bg-amber-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              aria-label={t.freezeBtn}
+              title={t.freezeBtn}
+              aria-pressed={frozen}
+              onClick={handleToggleFreeze}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                frozen
+                  ? 'border-cyan-500 bg-cyan-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Snowflake className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <div
+              aria-hidden="true"
+              className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700"
+            />
+
+            <button
+              type="button"
+              aria-label={t.laserBtn}
+              title={t.laserBtn}
+              aria-pressed={pointerTool === 'laser'}
+              onClick={() => handleToggleTool('laser')}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                pointerTool === 'laser'
+                  ? 'border-red-500 bg-red-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              aria-label={t.penBtn}
+              title={t.penBtn}
+              aria-pressed={pointerTool === 'pen'}
+              onClick={() => handleToggleTool('pen')}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                pointerTool === 'pen'
+                  ? 'border-red-500 bg-red-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <div
+              role="group"
+              aria-label="Ink colors"
+              className="flex h-7 shrink-0 items-center gap-1 rounded border border-slate-300 bg-slate-200/80 px-1.5 dark:border-slate-800 dark:bg-slate-950/70"
+            >
+              {PEN_COLOR_SWATCHES.map((swatch) => {
+                const selected = penColor === swatch.hex;
+                const isWhite = swatch.id === 'white';
+                return (
+                  <button
+                    key={swatch.id}
+                    type="button"
+                    data-testid={`pen-color-${swatch.id}`}
+                    aria-label={`Ink color ${swatch.label}`}
+                    aria-pressed={selected}
+                    title={swatch.label}
+                    onClick={() => handleSelectPenColor(swatch.hex)}
+                    style={{ backgroundColor: swatch.hex }}
+                    className={`h-4 w-4 rounded-full border transition ${
+                      selected
+                        ? 'scale-110 border-slate-900 ring-2 ring-blue-500 dark:border-white dark:ring-blue-400'
+                        : isWhite
+                          ? 'border-slate-500 opacity-95 hover:opacity-100'
+                          : 'border-slate-500/60 opacity-85 hover:opacity-100 dark:border-slate-600'
+                    }`}
+                  />
+                );
+              })}
+            </div>
+
+            <div
+              role="group"
+              aria-label="Pen width"
+              className="flex h-7 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-slate-100 dark:border-slate-700/70 dark:bg-slate-800"
+            >
+              <button
+                type="button"
+                aria-label="Pen size -"
+                title={t.penMinus}
+                onClick={() => handleAdjustPenSize(-0.004)}
+                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Minus className="h-3 w-3" aria-hidden="true" />
+              </button>
+              <span className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+              <button
+                type="button"
+                aria-label="Pen size +"
+                title={t.penPlus}
+                onClick={() => handleAdjustPenSize(0.004)}
+                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Plus className="h-3 w-3" aria-hidden="true" />
+              </button>
             </div>
 
             <button
               type="button"
-              disabled={currentPage >= meta.numPages}
-              onClick={() => navigateToSlide(currentPage + 1)}
-              className="rounded bg-slate-800 px-2 py-1 hover:bg-slate-700 disabled:opacity-40"
+              aria-label={t.spotlightBtn}
+              title={t.spotlightBtn}
+              aria-pressed={pointerTool === 'spotlight'}
+              onClick={() => handleToggleTool('spotlight')}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                pointerTool === 'spotlight'
+                  ? 'border-amber-500 bg-amber-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
             >
-              {t.next}
+              <Focus className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <div
+              role="group"
+              aria-label="Spotlight radius"
+              className="flex h-7 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-slate-100 dark:border-slate-700/70 dark:bg-slate-800"
+            >
+              <button
+                type="button"
+                data-testid="spotlight-size-down"
+                aria-label="Spotlight size -"
+                title={`${t.spotMinus} (${Math.round(spotlightRadius * 100)}%)`}
+                onClick={() => handleAdjustSpotlightRadius(-0.04)}
+                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Minus className="h-3 w-3" aria-hidden="true" />
+              </button>
+              <span className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+              <button
+                type="button"
+                data-testid="spotlight-size-up"
+                aria-label="Spotlight size +"
+                title={`${t.spotPlus} (${Math.round(spotlightRadius * 100)}%)`}
+                onClick={() => handleAdjustSpotlightRadius(0.04)}
+                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <Plus className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              aria-label={t.undoBtn}
+              title={t.undoBtn}
+              onClick={handleUndoStroke}
+              className={iconBtnClass}
+            >
+              <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              aria-label={t.clearInkBtn}
+              title={t.clearInkBtn}
+              onClick={handleClearInk}
+              className={iconBtnClass}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              data-testid="toggle-ink-visibility"
+              aria-label={t.inkBtn}
+              title={t.inkBtn}
+              aria-pressed={inkVisible}
+              onClick={handleToggleInkVisibility}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                inkVisible
+                  ? 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                  : 'border-purple-500 bg-purple-600 text-white hover:bg-purple-500'
+              }`}
+            >
+              {inkVisible ? (
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
             </button>
           </div>
-        )}
 
-        {/* Crop, Curtain, Pointer & Modal tools */}
-        <div className="flex flex-wrap items-center gap-1">
-          <select
-            aria-label="Crop mode"
-            data-testid="crop-mode-select"
-            value={cropMode}
-            onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
-            className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-slate-200"
-          >
-            <option value="full">{t.cropFull}</option>
-            <option value="split-horizontal">{t.cropSplitHorizontal}</option>
-            <option value="split-vertical">{t.cropSplitVertical}</option>
-          </select>
+          {/* Right: Guard, Rehearsal Stats, Grid & Outline */}
+          <div className="flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap">
+            <button
+              type="button"
+              data-testid="guard-toggle"
+              aria-label={t.guardBtn}
+              title={t.guardBtn}
+              aria-pressed={guardEnabled}
+              onClick={() => setGuardEnabled((prev) => !prev)}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                guardEnabled
+                  ? 'border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {guardEnabled ? (
+                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
 
-          <button
-            type="button"
-            aria-label="Swap split halves"
-            disabled={cropMode === 'full'}
-            onClick={handleToggleSwapSplit}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700 disabled:opacity-40"
-          >
-            {t.swapHalves}
-          </button>
+            <button
+              type="button"
+              data-testid="open-stats-button"
+              aria-label={t.statsBtn}
+              title={t.statsBtn}
+              disabled={!meta}
+              onClick={() => {
+                if (!meta) return;
+                setNowTick(Date.now());
+                setActiveModal((prev) => (prev === 'stats' ? 'none' : 'stats'));
+              }}
+              className={iconBtnClass}
+            >
+              <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
 
-          <button
-            type="button"
-            aria-label="Blackout"
-            aria-pressed={curtainMode === 'black'}
-            onClick={() => handleToggleCurtain('black')}
-            className={`rounded px-1.5 py-1 font-medium ${
-              curtainMode === 'black'
-                ? 'bg-amber-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.blackoutBtn}
-          </button>
+            <button
+              type="button"
+              aria-label={t.gridAria}
+              title={t.gridBtn}
+              onClick={() => setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'))}
+              className={iconBtnClass}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
 
-          <button
-            type="button"
-            aria-label="Whiteout"
-            aria-pressed={curtainMode === 'white'}
-            onClick={() => handleToggleCurtain('white')}
-            className={`rounded px-1.5 py-1 font-medium ${
-              curtainMode === 'white'
-                ? 'bg-amber-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.whiteoutBtn}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Freeze"
-            aria-pressed={frozen}
-            onClick={handleToggleFreeze}
-            className={`rounded px-1.5 py-1 font-medium ${
-              frozen
-                ? 'bg-cyan-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.freezeBtn}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Laser"
-            aria-pressed={pointerTool === 'laser'}
-            onClick={() => handleToggleTool('laser')}
-            className={`rounded px-1.5 py-1 font-medium ${
-              pointerTool === 'laser'
-                ? 'bg-red-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.laserBtn}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Pen"
-            aria-pressed={pointerTool === 'pen'}
-            onClick={() => handleToggleTool('pen')}
-            className={`rounded px-1.5 py-1 font-medium ${
-              pointerTool === 'pen'
-                ? 'bg-red-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.penBtn}
-          </button>
-
-          <div
-            role="group"
-            aria-label="Ink colors"
-            className="flex items-center gap-1 rounded bg-slate-950/70 px-1 py-0.5"
-          >
-            {PEN_COLOR_SWATCHES.map((swatch) => {
-              const selected = penColor === swatch.hex;
-              return (
-                <button
-                  key={swatch.id}
-                  type="button"
-                  data-testid={`pen-color-${swatch.id}`}
-                  aria-label={`Ink color ${swatch.label}`}
-                  aria-pressed={selected}
-                  title={swatch.label}
-                  onClick={() => handleSelectPenColor(swatch.hex)}
-                  style={{ backgroundColor: swatch.hex }}
-                  className={`h-4 w-4 rounded-full border transition ${
-                    selected
-                      ? 'scale-110 border-white ring-2 ring-blue-400'
-                      : 'border-slate-600 opacity-80 hover:opacity-100'
-                  }`}
-                />
-              );
-            })}
+            <button
+              type="button"
+              aria-label={t.outlineBtn}
+              title={t.outlineBtn}
+              onClick={() => setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'))}
+              className={iconBtnClass}
+            >
+              <ListTree className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
-
-          <button
-            type="button"
-            aria-label="Spotlight"
-            aria-pressed={pointerTool === 'spotlight'}
-            onClick={() => handleToggleTool('spotlight')}
-            className={`rounded px-1.5 py-1 font-medium ${
-              pointerTool === 'spotlight'
-                ? 'bg-yellow-600 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.spotlightBtn}
-          </button>
-
-          <button
-            type="button"
-            data-testid="spotlight-size-down"
-            aria-label="Spotlight size -"
-            title={`${t.spotlightBtn} - (${Math.round(spotlightRadius * 100)}%)`}
-            onClick={() => handleAdjustSpotlightRadius(-0.04)}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.spotMinus}
-          </button>
-          <button
-            type="button"
-            data-testid="spotlight-size-up"
-            aria-label="Spotlight size +"
-            title={`${t.spotlightBtn} + (${Math.round(spotlightRadius * 100)}%)`}
-            onClick={() => handleAdjustSpotlightRadius(0.04)}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.spotPlus}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Pen size -"
-            onClick={() => handleAdjustPenSize(-0.004)}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.penMinus}
-          </button>
-          <button
-            type="button"
-            aria-label="Pen size +"
-            onClick={() => handleAdjustPenSize(0.004)}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.penPlus}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Undo"
-            onClick={handleUndoStroke}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.undoBtn}
-          </button>
-
-          <button
-            type="button"
-            aria-label="Clear Ink"
-            onClick={handleClearInk}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.clearInkBtn}
-          </button>
-
-          <button
-            type="button"
-            data-testid="toggle-ink-visibility"
-            aria-pressed={inkVisible}
-            onClick={handleToggleInkVisibility}
-            className={`rounded px-1.5 py-1 font-medium ${
-              inkVisible
-                ? 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-                : 'bg-purple-700 text-white hover:bg-purple-600'
-            }`}
-          >
-            {t.inkBtn}
-          </button>
-
-          <button
-            type="button"
-            data-testid="guard-toggle"
-            aria-pressed={guardEnabled}
-            onClick={() => setGuardEnabled((prev) => !prev)}
-            className={`rounded px-1.5 py-1 font-medium ${
-              guardEnabled
-                ? 'bg-emerald-700 text-white'
-                : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
-            }`}
-          >
-            {t.guardBtn}
-          </button>
-
-          <button
-            type="button"
-            data-testid="open-stats-button"
-            disabled={!meta}
-            onClick={() => {
-              if (!meta) return;
-              setNowTick(Date.now());
-              setActiveModal((prev) => (prev === 'stats' ? 'none' : 'stats'));
-            }}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700 disabled:opacity-40"
-          >
-            {t.statsBtn}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'))}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.gridBtn}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'))}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.outlineBtn}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setHelpInitialTab('shortcuts');
-              setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
-            }}
-            className="rounded bg-slate-800 px-1.5 py-1 hover:bg-slate-700"
-          >
-            {t.helpBtn}
-          </button>
-
-          <button
-            type="button"
-            data-testid="locale-toggle"
-            title={t.localeToggleTitle}
-            aria-label={t.localeToggleTitle}
-            onClick={toggleLocale}
-            className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 font-mono text-[11px] font-semibold text-slate-200 hover:bg-slate-700"
-          >
-            <span className={locale === 'ja' ? 'text-blue-400' : 'text-slate-400'}>JP</span>
-            <span className="mx-0.5 text-slate-500">/</span>
-            <span className={locale === 'en' ? 'text-blue-400' : 'text-slate-400'}>EN</span>
-          </button>
         </div>
       </header>
 
@@ -2296,13 +2489,13 @@ export function PresenterConsole() {
         <div
           role="alert"
           data-testid="error-banner"
-          className="flex items-center justify-between border-b border-red-800 bg-red-950/90 px-4 py-2 text-xs text-red-200"
+          className="flex items-center justify-between border-b border-red-300 bg-red-50 px-4 py-2 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/90 dark:text-red-200"
         >
           <span>{errorMessage}</span>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="ml-4 rounded bg-red-900 px-2 py-0.5 text-red-100 hover:bg-red-800"
+            className="ml-4 rounded bg-red-200 px-2 py-0.5 text-red-900 hover:bg-red-300 dark:bg-red-900 dark:text-red-100 dark:hover:bg-red-800"
           >
             {t.dismiss}
           </button>
@@ -2314,13 +2507,13 @@ export function PresenterConsole() {
         <div
           role="status"
           data-testid="info-banner"
-          className="flex items-center justify-between border-b border-blue-800 bg-blue-950/90 px-4 py-2 text-xs text-blue-200"
+          className="flex items-center justify-between border-b border-blue-300 bg-blue-50 px-4 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/90 dark:text-blue-200"
         >
           <span>{infoMessage}</span>
           <button
             type="button"
             onClick={() => setInfoMessage(null)}
-            className="ml-4 rounded bg-blue-900 px-2 py-0.5 text-blue-100 hover:bg-blue-800"
+            className="ml-4 rounded bg-blue-200 px-2 py-0.5 text-blue-900 hover:bg-blue-300 dark:bg-blue-900 dark:text-blue-100 dark:hover:bg-blue-800"
           >
             {t.dismiss}
           </button>
@@ -2332,11 +2525,13 @@ export function PresenterConsole() {
         <div
           role="alert"
           data-testid="popup-blocked-banner"
-          className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-700 bg-amber-950/90 px-4 py-2 text-xs text-amber-100"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/90 dark:text-amber-100"
         >
           <span>
             {t.popupBlockedPrefix}{' '}
-            <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono">{popupBlockedUrl}</code>
+            <code className="rounded bg-amber-200/70 px-1.5 py-0.5 font-mono dark:bg-black/40">
+              {popupBlockedUrl}
+            </code>
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -2351,7 +2546,7 @@ export function PresenterConsole() {
             <button
               type="button"
               onClick={() => setPopupBlockedUrl(null)}
-              className="rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
+              className="rounded border border-slate-300 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 dark:border-transparent dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {t.dismiss}
             </button>
@@ -2364,7 +2559,7 @@ export function PresenterConsole() {
         <div
           role="alert"
           data-testid="split-banner"
-          className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-700 bg-indigo-950/90 px-4 py-2 text-xs text-indigo-100"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-300 bg-indigo-50 px-4 py-2 text-xs text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950/90 dark:text-indigo-100"
         >
           <span>{t.splitDetectedMessage}</span>
           <div className="flex items-center gap-2">
@@ -2385,7 +2580,7 @@ export function PresenterConsole() {
                   });
                 }
               }}
-              className="rounded bg-slate-800 px-2.5 py-1 text-slate-200 hover:bg-slate-700"
+              className="rounded border border-slate-300 bg-white px-2.5 py-1 text-slate-700 hover:bg-slate-100 dark:border-transparent dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {t.dismiss}
             </button>
@@ -2400,13 +2595,17 @@ export function PresenterConsole() {
             data-testid="pdf-dropzone"
             aria-label="Drop PDF file here"
             onClick={() => pdfFileInputRef.current?.click()}
-            className="flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-700 bg-slate-900/60 p-8 text-center transition hover:border-blue-500 hover:bg-slate-900"
+            className="flex w-full max-w-2xl cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white/90 p-8 text-center shadow-sm transition hover:border-blue-500 hover:bg-white dark:border-slate-700 dark:bg-slate-900/60 dark:shadow-none dark:hover:bg-slate-900"
           >
-            <h1 className="text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               {t.onboardingDropTitle}
             </h1>
-            <p className="mt-2 text-sm text-slate-300">{t.onboardingDropDesc}</p>
-            <p className="mt-1 text-xs text-slate-400">{t.onboardingSupports}</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {t.onboardingDropDesc}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {t.onboardingSupports}
+            </p>
             <div
               className="mt-5 flex flex-wrap items-center justify-center gap-3"
               onClick={(e) => e.stopPropagation()}
@@ -2414,7 +2613,7 @@ export function PresenterConsole() {
               <button
                 type="button"
                 onClick={() => pdfFileInputRef.current?.click()}
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+                className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               >
                 {t.choosePdfFile}
               </button>
@@ -2432,7 +2631,7 @@ export function PresenterConsole() {
                   setHelpInitialTab('quickstart');
                   setActiveModal('help');
                 }}
-                className="rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800"
+                className="rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {t.quickGuideBtn}
               </button>
@@ -2443,27 +2642,33 @@ export function PresenterConsole() {
           <section
             data-testid="onboarding-quickstart"
             aria-label={t.quickStartHeading}
-            className="mt-4 w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900/60 p-4"
+            className="mt-4 w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/60 dark:shadow-none"
           >
-            <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <h2 className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {t.quickStartHeading}
             </h2>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
-                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep1Title}</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {t.quickStartStep1Title}
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
                   {t.quickStartStep1Desc}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
-                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep2Title}</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {t.quickStartStep2Title}
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
                   {t.quickStartStep2Desc}
                 </p>
               </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-2.5">
-                <div className="text-xs font-semibold text-slate-100">{t.quickStartStep3Title}</div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {t.quickStartStep3Title}
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
                   {t.quickStartStep3Desc}
                 </p>
               </div>
@@ -2474,20 +2679,22 @@ export function PresenterConsole() {
             <section
               data-testid="recent-decks-section"
               aria-label="Recent decks"
-              className="mt-4 w-full max-w-2xl rounded-xl border border-slate-800 bg-slate-900/80 p-4"
+              className="mt-4 w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80 dark:shadow-none"
             >
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 {t.recentDecksTitle}
               </h2>
               <ul className="space-y-2">
                 {recentDecks.map((deck) => (
                   <li
                     key={deck.deckId}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-950/70"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-slate-100">{deck.fileName}</div>
-                      <div className="text-[11px] text-slate-400">
+                      <div className="truncate font-medium text-slate-900 dark:text-slate-100">
+                        {deck.fileName}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
                         {new Date(deck.lastOpenedAt).toLocaleString()}
                       </div>
                     </div>
@@ -2504,7 +2711,7 @@ export function PresenterConsole() {
                         type="button"
                         data-testid={`delete-recent-${deck.deckId}`}
                         onClick={() => void handleDeleteRecentDeck(deck.deckId)}
-                        className="rounded bg-slate-800 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-900/60"
+                        className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:border-transparent dark:bg-slate-800 dark:text-red-300 dark:hover:bg-red-900/60"
                       >
                         {t.deleteRecent}
                       </button>
@@ -2518,7 +2725,7 @@ export function PresenterConsole() {
       ) : (
         <div className="grid flex-1 grid-cols-12 gap-3 overflow-hidden p-3">
           {/* Left / Center: Current Slide Stage */}
-          <div className="col-span-7 flex flex-col overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-2">
+          <div className="col-span-7 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
             <SlideStage
               engine={engineRef.current}
               deckId={meta.deckId}
@@ -2578,9 +2785,9 @@ export function PresenterConsole() {
               {/* Next Slide Preview */}
               <section
                 aria-label="Next slide panel"
-                className="flex flex-col rounded-lg border border-slate-800 bg-slate-900 p-2.5"
+                className="flex flex-col rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
               >
-                <div className="mb-1.5 flex items-center justify-between text-xs text-slate-400">
+                <div className="mb-1.5 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold uppercase tracking-wider">{t.nextSlide}</span>
                   <span>
                     {currentPage < meta.numPages
@@ -2588,7 +2795,7 @@ export function PresenterConsole() {
                       : t.finalSlide}
                   </span>
                 </div>
-                <div className="flex h-32 items-center justify-center overflow-hidden rounded bg-slate-950 p-1">
+                <div className="flex h-32 items-center justify-center overflow-hidden rounded border border-slate-200/80 bg-slate-100 p-1 dark:border-slate-800 dark:bg-slate-950">
                   {currentPage < meta.numPages ? (
                     <ThumbnailCanvas
                       engine={engineRef.current}
@@ -2604,7 +2811,7 @@ export function PresenterConsole() {
                   ) : (
                     <div
                       data-testid="end-of-presentation"
-                      className="text-center text-xs font-medium text-slate-400"
+                      className="text-center text-xs font-medium text-slate-500 dark:text-slate-400"
                     >
                       {t.endOfPresentation}
                     </div>
@@ -2616,12 +2823,15 @@ export function PresenterConsole() {
               <section
                 data-testid="timer-panel"
                 aria-label="Timer panel"
-                className="flex flex-col justify-between rounded-lg border border-slate-800 bg-slate-900 p-2.5 text-xs"
+                className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
               >
                 <div className="flex items-center justify-between">
-                  <div className="font-semibold uppercase tracking-wider text-slate-400">
+                  <div className="font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     {t.clock}{' '}
-                    <span data-testid="wall-clock" className="font-mono text-slate-200">
+                    <span
+                      data-testid="wall-clock"
+                      className="font-mono text-slate-800 dark:text-slate-200"
+                    >
                       {formatWallClock(nowTick)}
                     </span>{' '}
                   </div>
@@ -2631,12 +2841,12 @@ export function PresenterConsole() {
                     data-pacing={timerSnapshot.pacingStatus}
                     className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
                       timerSnapshot.pacingStatus === 'overtime'
-                        ? 'bg-red-950 text-red-300 border border-red-700'
+                        ? 'border border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
                         : timerSnapshot.pacingStatus === 'warning'
-                          ? 'bg-amber-950 text-amber-300 border border-amber-700'
+                          ? 'border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300'
                           : timerSnapshot.pacingStatus === 'ahead'
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
-                            : 'bg-blue-950 text-blue-300 border border-blue-700'
+                            ? 'border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            : 'border border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950 dark:text-blue-300'
                     }`}
                   >
                     {timerSnapshot.pacingStatus}
@@ -2645,12 +2855,14 @@ export function PresenterConsole() {
 
                 {/* Elapsed & Countdown */}
                 <div className="my-1.5 grid grid-cols-2 gap-1.5">
-                  <div className="rounded bg-slate-950 px-2 py-1">
-                    <div className="text-[10px] text-slate-400">{t.elapsed}</div>
+                  <div className="rounded border border-slate-200 bg-slate-50 px-2 py-1 dark:border-transparent dark:bg-slate-950">
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                      {t.elapsed}
+                    </div>
                     <div
                       data-testid="elapsed-timer"
                       aria-label="Elapsed time"
-                      className="font-mono text-base font-bold text-slate-100"
+                      className="font-mono text-base font-bold text-slate-900 dark:text-slate-100"
                     >
                       {formatDurationMMSS(timerSnapshot.totalElapsedMs)}
                     </div>
@@ -2659,10 +2871,10 @@ export function PresenterConsole() {
                   <div
                     className={`rounded px-2 py-1 ${
                       timerSnapshot.remainingMs < 0
-                        ? 'bg-red-950/70 text-red-300 border border-red-700 danger overtime'
+                        ? 'border border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950/70 dark:text-red-300 danger overtime'
                         : timerSnapshot.lastMinutesWarning
-                          ? 'bg-amber-950/70 text-amber-300 border border-amber-700 warning'
-                          : 'bg-slate-950 text-slate-100'
+                          ? 'border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950/70 dark:text-amber-300 warning'
+                          : 'border border-slate-200 bg-slate-50 text-slate-900 dark:border-transparent dark:bg-slate-950 dark:text-slate-100'
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px]">
@@ -2672,7 +2884,7 @@ export function PresenterConsole() {
                           data-status="warning"
                           data-warning="true"
                           data-testid="timer-warning-badge"
-                          className="font-bold text-amber-400"
+                          className="font-bold text-amber-600 dark:text-amber-400"
                         >
                           {t.warn}
                         </span>
@@ -2681,7 +2893,9 @@ export function PresenterConsole() {
                     <div
                       data-testid="countdown-timer"
                       className={`font-mono text-base font-bold ${
-                        timerSnapshot.remainingMs < 0 ? 'text-red-400 overtime' : ''
+                        timerSnapshot.remainingMs < 0
+                          ? 'text-red-600 dark:text-red-400 overtime'
+                          : ''
                       }`}
                     >
                       {formatCountdownMMSS(timerSnapshot.remainingMs)}
@@ -2690,10 +2904,13 @@ export function PresenterConsole() {
                 </div>
 
                 {/* Per-slide timer */}
-                <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-400">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                   <span>
                     {t.slidePrefix}{' '}
-                    <strong data-testid="slide-elapsed" className="font-mono text-slate-200">
+                    <strong
+                      data-testid="slide-elapsed"
+                      className="font-mono text-slate-800 dark:text-slate-200"
+                    >
                       {formatDurationMMSS(timerSnapshot.slideElapsedMs)}
                     </strong>
                     {currentSlideEntry?.targetSeconds
@@ -2720,21 +2937,21 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     onClick={startTimer}
-                    className="flex-1 rounded bg-emerald-700 px-2 py-1 font-medium text-white hover:bg-emerald-600"
+                    className="flex-1 rounded bg-emerald-600 px-2 py-1 font-medium text-white hover:bg-emerald-500 dark:bg-emerald-700 dark:hover:bg-emerald-600"
                   >
                     {t.start}
                   </button>
                   <button
                     type="button"
                     onClick={pauseTimer}
-                    className="flex-1 rounded bg-amber-700 px-2 py-1 font-medium text-white hover:bg-amber-600"
+                    className="flex-1 rounded bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
                   >
                     {t.pause}
                   </button>
                   <button
                     type="button"
                     onClick={resetTimer}
-                    className="flex-1 rounded bg-slate-800 px-2 py-1 font-medium text-slate-200 hover:bg-slate-700"
+                    className="flex-1 rounded border border-slate-300 bg-slate-100 px-2 py-1 font-medium text-slate-700 hover:bg-slate-200 dark:border-transparent dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     {t.reset}
                   </button>
@@ -2742,7 +2959,7 @@ export function PresenterConsole() {
 
                 {/* Duration, Warning & End-Time inputs */}
                 <div className="grid grid-cols-3 gap-1 text-[10px]">
-                  <label className="flex flex-col text-slate-400">
+                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
                     <span>{t.durationMin}</span>
                     <input
                       type="number"
@@ -2756,11 +2973,11 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => commitDurationInput(countdownInputText)}
-                      className="mt-0.5 rounded border border-slate-700 bg-slate-950 px-1 py-0.5 font-mono text-xs text-slate-100"
+                      className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </label>
 
-                  <label className="flex flex-col text-slate-400">
+                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
                     <span>{t.warningMin}</span>
                     <input
                       type="number"
@@ -2774,11 +2991,11 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => commitWarningInput(lastMinutesInputText)}
-                      className="mt-0.5 rounded border border-slate-700 bg-slate-950 px-1 py-0.5 font-mono text-xs text-slate-100"
+                      className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </label>
 
-                  <label className="flex flex-col text-slate-400">
+                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
                     <span>{t.endTimeLabel}</span>
                     <input
                       type="time"
@@ -2791,7 +3008,7 @@ export function PresenterConsole() {
                           commitEndTimeInput((e.target as HTMLInputElement).value);
                         }
                       }}
-                      className="mt-0.5 rounded border border-slate-700 bg-slate-950 px-1 py-0.5 font-mono text-xs text-slate-100"
+                      className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </label>
                 </div>
@@ -2802,30 +3019,32 @@ export function PresenterConsole() {
             <section
               data-testid="notes-panel"
               aria-label="Speaker notes"
-              className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-3"
+              className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
             >
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-800 pb-2 text-xs">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold uppercase tracking-wider text-slate-300">
+              <div className="mb-2 flex h-9 shrink-0 flex-nowrap items-center justify-between gap-1.5 border-b border-slate-200 pb-1.5 text-xs dark:border-slate-800">
+                <div className="flex min-w-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+                  <span className="font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                     {t.speakerNotesTitle}
                   </span>
                   <button
                     type="button"
-                    aria-label="A- decrease font"
+                    aria-label={t.fontDecreaseTooltip}
+                    title={t.fontDecreaseTooltip}
                     onClick={() => void handleAdjustFontSize(-2)}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
+                    className="inline-flex h-7 items-center justify-center rounded border border-slate-200 bg-slate-100 px-2 font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     A-
                   </button>
                   <button
                     type="button"
-                    aria-label="A+ increase font"
+                    aria-label={t.fontIncreaseTooltip}
+                    title={t.fontIncreaseTooltip}
                     onClick={() => void handleAdjustFontSize(2)}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
+                    className="inline-flex h-7 items-center justify-center rounded border border-slate-200 bg-slate-100 px-2 font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     A+
                   </button>
-                  <label className="ml-1 flex items-center gap-1 text-[11px] text-slate-400">
+                  <label className="ml-0.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                     <span>{t.targetLabel}</span>
                     <input
                       type="number"
@@ -2844,69 +3063,112 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => void commitSlideTargetInput(slideTargetInputText)}
-                      className="w-12 rounded border border-slate-700 bg-slate-950 px-1 py-0.5 text-center font-mono text-xs text-slate-100"
+                      className="h-6 w-11 rounded border border-slate-300 bg-slate-50 px-1 text-center font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                     <span>{t.secondsUnit}</span>
                   </label>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1">
+                <div className="flex shrink-0 flex-nowrap items-center gap-1">
                   {!isEditingNotes ? (
                     <button
                       type="button"
+                      aria-label={t.editNotesBtn}
+                      title={t.editNotesBtn}
                       onClick={openNotesEditor}
-                      className="rounded bg-blue-600 px-2 py-0.5 font-medium text-white hover:bg-blue-500"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded bg-blue-600 text-white transition hover:bg-blue-500"
                     >
-                      {t.editNotesBtn}
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   ) : (
                     <button
                       type="button"
+                      aria-label={t.saveNotesBtn}
+                      title={t.saveNotesBtn}
                       onClick={() => void saveNotesEditor()}
-                      className="rounded bg-emerald-600 px-2 py-0.5 font-medium text-white hover:bg-emerald-500"
+                      className="inline-flex h-7 w-7 items-center justify-center rounded bg-emerald-600 text-white transition hover:bg-emerald-500"
                     >
-                      {t.saveNotesBtn}
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   )}
 
                   <button
                     type="button"
                     data-testid="open-notes-import-button"
+                    aria-label={t.importNotesBtn}
+                    title={t.importNotesBtn}
                     onClick={() => setActiveModal('notes-import')}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
+                    className={iconBtnClass}
                   >
-                    {t.importNotesBtn}
+                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
 
                   <button
                     type="button"
+                    aria-label={t.importEmbeddedBtn}
+                    title={t.importEmbeddedBtn}
                     onClick={() => void handleImportEmbeddedNotes()}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
+                    className={iconBtnClass}
                   >
-                    {t.importEmbeddedBtn}
+                    <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleExportNotes('md')}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
-                  >
-                    {t.exportMdBtn}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleExportNotes('json')}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
-                  >
-                    {t.exportJsonBtn}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleExportNotes('pdfpc')}
-                    className="rounded bg-slate-800 px-2 py-0.5 text-slate-200 hover:bg-slate-700"
-                  >
-                    {t.exportPdfpcBtn}
-                  </button>
+                  <div ref={exportMenuRef} className="relative">
+                    <button
+                      type="button"
+                      aria-haspopup="menu"
+                      aria-expanded={exportMenuOpen}
+                      aria-label={t.exportNotesBtn}
+                      title={t.exportNotesBtn}
+                      onClick={() => setExportMenuOpen((prev) => !prev)}
+                      className="inline-flex h-7 items-center gap-1 rounded border border-slate-200 bg-slate-100 px-2 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      <ChevronDown className="h-3 w-3 opacity-75" aria-hidden="true" />
+                    </button>
+
+                    {exportMenuOpen && (
+                      <div
+                        role="menu"
+                        aria-label={t.exportNotesBtn}
+                        className="absolute right-0 z-30 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setExportMenuOpen(false);
+                            handleExportNotes('md');
+                          }}
+                          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {t.exportMdItem}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setExportMenuOpen(false);
+                            handleExportNotes('json');
+                          }}
+                          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {t.exportJsonItem}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setExportMenuOpen(false);
+                            handleExportNotes('pdfpc');
+                          }}
+                          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {t.exportPdfpcItem}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -2917,14 +3179,14 @@ export function PresenterConsole() {
                     value={draftNoteText}
                     onChange={(e) => setDraftNoteText(e.target.value)}
                     placeholder={t.notesEditorPlaceholder}
-                    className="flex-1 resize-none rounded border border-slate-700 bg-slate-950 p-2.5 font-mono text-sm text-slate-100 focus:border-blue-500 focus:outline-none"
+                    className="flex-1 resize-none rounded border border-slate-300 bg-slate-50 p-2.5 font-mono text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   />
                 </div>
               ) : (
                 <div
                   data-testid="notes-content"
                   style={{ fontSize: `${noteFontSizePx}px` }}
-                  className="prose prose-invert max-w-none flex-1 overflow-y-auto leading-relaxed text-slate-200"
+                  className="prose prose-sm max-w-none flex-1 overflow-y-auto leading-relaxed text-slate-800 dark:prose-invert dark:text-slate-200"
                 >
                   {currentSlideMarkdown.trim().length > 0 ? (
                     <ReactMarkdown>{currentSlideMarkdown}</ReactMarkdown>
@@ -2932,7 +3194,7 @@ export function PresenterConsole() {
                     <div className="flex flex-col items-start gap-2.5 py-2">
                       <p
                         style={{ fontSize: `${noteFontSizePx}px` }}
-                        className="m-0 italic text-slate-500"
+                        className="m-0 italic text-slate-400 dark:text-slate-500"
                       >
                         {t.noNotesPlaceholder}
                       </p>
@@ -2940,14 +3202,14 @@ export function PresenterConsole() {
                         <button
                           type="button"
                           onClick={openNotesEditor}
-                          className="rounded bg-slate-800 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-700"
+                          className="rounded border border-slate-300 bg-slate-100 px-2.5 py-1 font-medium text-slate-800 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                           {t.quickEditHintBtn}
                         </button>
                         <button
                           type="button"
                           onClick={() => setActiveModal('notes-import')}
-                          className="rounded border border-slate-700 bg-slate-950 px-2.5 py-1 font-medium text-slate-200 hover:bg-slate-800"
+                          className="rounded border border-slate-300 bg-white px-2.5 py-1 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           {t.quickImportHintBtn}
                         </button>
@@ -2968,14 +3230,16 @@ export function PresenterConsole() {
           aria-modal="true"
           aria-label="Slide grid overview"
           data-testid="slide-grid-dialog"
-          className="fixed inset-0 z-40 flex flex-col bg-slate-950/95 p-6"
+          className="fixed inset-0 z-40 flex flex-col bg-slate-100/95 p-6 text-slate-900 backdrop-blur-sm dark:bg-slate-950/95 dark:text-slate-100"
         >
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white">{t.gridOverviewTitle}</h2>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {t.gridOverviewTitle}
+            </h2>
             <button
               type="button"
               onClick={() => setActiveModal('none')}
-              className="rounded bg-slate-800 px-3 py-1 text-sm text-slate-200 hover:bg-slate-700"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {t.closeEsc}
             </button>
@@ -2990,11 +3254,11 @@ export function PresenterConsole() {
                 }}
                 className={`flex cursor-pointer flex-col items-center rounded-lg border p-2 transition ${
                   pageNum === currentPage
-                    ? 'border-blue-500 bg-blue-950/30'
-                    : 'border-slate-800 bg-slate-900 hover:border-slate-600'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                    : 'border-slate-200 bg-white hover:border-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600'
                 }`}
               >
-                <div className="flex h-36 w-full items-center justify-center overflow-hidden">
+                <div className="flex h-36 w-full items-center justify-center overflow-hidden rounded bg-slate-100 dark:bg-slate-950/50">
                   <ThumbnailCanvas
                     engine={engineRef.current}
                     deckId={meta.deckId}
@@ -3010,7 +3274,7 @@ export function PresenterConsole() {
                     }}
                   />
                 </div>
-                <span className="mt-1.5 text-xs font-medium text-slate-300">
+                <span className="mt-1.5 text-xs font-medium text-slate-700 dark:text-slate-300">
                   {t.slideLabel} {pageNum}
                 </span>
               </div>
@@ -3026,14 +3290,16 @@ export function PresenterConsole() {
           aria-modal="true"
           aria-label="Document outline"
           data-testid="outline-drawer"
-          className="fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-slate-800 bg-slate-900 p-4 shadow-2xl"
+          className="fixed inset-y-0 left-0 z-40 flex w-80 flex-col border-r border-slate-200 bg-white p-4 text-slate-900 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
         >
-          <div className="mb-3 flex items-center justify-between border-b border-slate-800 pb-2">
-            <h2 className="text-base font-bold text-white">{t.outlineTitle}</h2>
+          <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-2 dark:border-slate-800">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+              {t.outlineTitle}
+            </h2>
             <button
               type="button"
               onClick={() => setActiveModal('none')}
-              className="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-200 hover:bg-slate-700"
+              className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-xs text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               {t.close}
             </button>
@@ -3042,7 +3308,9 @@ export function PresenterConsole() {
             {meta && meta.outline.length > 0 ? (
               renderOutlineNodes(meta.outline)
             ) : (
-              <p className="py-6 text-center text-sm text-slate-400">{t.noOutlineAvailable}</p>
+              <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                {t.noOutlineAvailable}
+              </p>
             )}
           </div>
         </div>

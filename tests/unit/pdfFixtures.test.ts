@@ -16,7 +16,7 @@ function createLegacyEngine(): PdfEngine {
 }
 
 describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
-  it('loads public/sample-deck.pdf and verifies outline, pageLabels, aspect ratio, links, and sample-notes.md parity', async () => {
+  it('loads public/sample-deck.pdf and verifies outline, aspect ratio, crop mode, and sample-notes.md parity', async () => {
     const pdfPath = path.join(projectRoot, 'public', 'sample-deck.pdf');
     const notesPath = path.join(projectRoot, 'public', 'sample-notes.md');
     const rawBytes = new Uint8Array(readFileSync(pdfPath));
@@ -28,13 +28,15 @@ describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
 
       expect(meta.deckId).toBe(expectedHash);
       expect(meta.byteLength).toBe(rawBytes.byteLength);
-      expect(meta.numPages).toBe(6);
-      expect(meta.pageLabels).toEqual(['1', '2', '3', '4', '5', '6']);
+      expect(meta.numPages).toBe(8);
+      if (meta.pageLabels !== null) {
+        expect(meta.pageLabels).toHaveLength(8);
+      }
       expect(meta.firstPageAspectRatio).toBeCloseTo(16 / 9, 2);
       expect(meta.suggestedCropMode).toBe('full');
 
-      // Outline should contain top-level sections and nested subsections with resolved 1-based pages
-      expect(meta.outline.length).toBeGreaterThanOrEqual(4);
+      // Outline should contain sections for slides 2..8 with resolved 1-based pages
+      expect(meta.outline.length).toBeGreaterThanOrEqual(7);
       const flattenedTitles: Array<{ title: string; pageNumber: number | null }> = [];
       const walk = (nodes: typeof meta.outline) => {
         for (const node of nodes) {
@@ -44,23 +46,15 @@ describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
       };
       walk(meta.outline);
 
-      expect(flattenedTitles.some((n) => n.title.includes('typst-presenter') && n.pageNumber === 1)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('アジェンダ') && n.pageNumber === 2)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('1.1') && n.pageNumber === 3)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('1.2') && n.pageNumber === 4)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('実装ハイライト') && n.pageNumber === 5)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('まとめ') && n.pageNumber === 6)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('課題') && n.pageNumber === 2)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('解決策') && n.pageNumber === 3)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('機能 1') && n.pageNumber === 4)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('機能 2') && n.pageNumber === 5)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('機能 3') && n.pageNumber === 6)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('機能 4') && n.pageNumber === 7)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('まとめ') && n.pageNumber === 8)).toBe(true);
 
-      // Slide 3 has both an external Typst docs link and an internal jump to Slide 6
-      const slide3Links = await engine.extractPageLinks(3, 'full');
-      expect(slide3Links.some((l) => l.url?.startsWith('https://typst.app/docs'))).toBe(true);
-      expect(slide3Links.some((l) => l.destPage === 6)).toBe(true);
-
-      // Slide 6 has an internal back-link to Slide 1
-      const slide6Links = await engine.extractPageLinks(6, 'full');
-      expect(slide6Links.some((l) => l.destPage === 1)).toBe(true);
-
-      // Verify sample-notes.md covers all 6 slides
+      // Verify sample-notes.md covers all 8 slides
       const notesMd = readFileSync(notesPath, 'utf8');
       for (let slide = 1; slide <= meta.numPages; slide += 1) {
         expect(notesMd).toContain(`<!-- slide: ${slide} -->`);

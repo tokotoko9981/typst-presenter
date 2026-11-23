@@ -100,21 +100,21 @@ test.describe('Tier 1 — Area C: Speaker Notes (Render, Edit, Import/Export & P
     const notesPanel = getNotesPanel(page);
     await expect(notesPanel).toBeVisible();
 
-    await expect(notesPanel).toContainText(/導入\s*\/\s*Opening/);
-    await expect(notesPanel.locator('strong', { hasText: /typst-presenter/ })).toBeVisible();
+    await expect(notesPanel).toContainText(/オープニング/);
+    await expect(notesPanel.locator('strong', { hasText: /Typst Presenter/ })).toBeVisible();
     await expect(notesPanel.locator('li').first()).toBeVisible();
     await expect(notesPanel.locator('code').first()).toBeVisible();
 
     const slide1Text = await notesPanel.innerText();
-    expect(slide1Text).not.toContain('### 導入');
-    expect(slide1Text).not.toContain('**typst-presenter**');
+    expect(slide1Text).not.toContain('### オープニング');
+    expect(slide1Text).not.toContain('**Typst Presenter**');
 
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.next);
-    await expect(notesPanel).toContainText(/アジェンダ\s*\/\s*Agenda/);
+    await expect(notesPanel).toContainText(/課題：PDF ビューア単体での発表/);
 
     await pressShortcut(page, SHORTCUTS.next);
-    await expect(notesPanel).toContainText(/デュアルウィンドウ同期/);
+    await expect(notesPanel).toContainText(/解決策：PDF と Markdown 原稿の疎結合/);
 
     errors.assertNoErrors();
   });
@@ -488,7 +488,7 @@ test.describe('Tier 1 — Area D: Timers & Pacing Engine', () => {
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.next);
     await expect(async () => {
-      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 6 });
+      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 8 });
     }).toPass({ timeout: 5_000 });
 
     if ((await slideElapsed.count()) > 0) {

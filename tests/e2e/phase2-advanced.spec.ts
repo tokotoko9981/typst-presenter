@@ -209,7 +209,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.next);
     await expect(async () => {
-      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 8 });
+      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 9 });
     }).toPass({ timeout: 5_000 });
     await page.waitForTimeout(1_200);
 
@@ -219,7 +219,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
 
     const modal = page.getByTestId('rehearsal-stats-modal');
     await expect(modal).toBeVisible({ timeout: 5_000 });
-    await expect(modal.getByTestId('rehearsal-slides-visited')).toHaveText('2 / 8');
+    await expect(modal.getByTestId('rehearsal-slides-visited')).toHaveText('2 / 9');
 
     await expect(async () => {
       const totalText = await modal.getByTestId('rehearsal-total-actual').innerText();
@@ -358,7 +358,7 @@ test.describe('Phase 2 — Advanced Presenter Features E2E', () => {
     const openBtn = recentSection.locator('[data-testid^="open-recent-"]').first();
     await openBtn.click();
     await waitForDeckLoaded(page);
-    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 8 });
+    expect(await getSlideCounter(page)).toEqual({ current: 1, total: 9 });
 
     // Return to onboarding and delete the deck from Recent Decks
     await page.getByTestId('close-deck-button').click();

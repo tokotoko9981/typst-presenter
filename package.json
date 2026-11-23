@@ -18,8 +18,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "icons:generate": "node scripts/generate-icons.mjs",
-    "tauri:dev": "npx --yes @tauri-apps/cli@2 dev",
-    "tauri:build": "npx --yes @tauri-apps/cli@2 build"
+    "tauri:dev": "node scripts/run-tauri.mjs dev",
+    "tauri:build": "node scripts/run-tauri.mjs build"
   },
   "dependencies": {
     "lucide-react": "^1.74.0",

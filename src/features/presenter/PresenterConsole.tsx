@@ -18,8 +18,6 @@ import {
   LayoutGrid,
   ListTree,
   Minus,
-  Monitor,
-  MonitorOff,
   Moon,
   Paperclip,
   Pencil,
@@ -32,6 +30,7 @@ import {
   ShieldCheck,
   Snowflake,
   Sun,
+  Tag,
   Trash2,
   Undo2,
   Upload,
@@ -94,6 +93,68 @@ import {
 import { HelpModal, type HelpModalTab } from './HelpModal.tsx';
 import { NotesImportModal } from './NotesImportModal.tsx';
 import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
+import { UiGuideOverlay } from './UiGuideOverlay.tsx';
+
+function BlackoutScreenIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="9"
+        rx="1.5"
+        fill="#020617"
+        stroke="currentColor"
+        strokeWidth="1.25"
+      />
+      <path
+        d="M5.5 13.5h5M8 11.5v2"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6.4 5h1.9a1.15 1.15 0 0 1 .4 2.22A1.2 1.2 0 0 1 8.4 9.5h-2V5Z"
+        fill="none"
+        stroke="#f8fafc"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function WhiteoutScreenIcon() {
+  return (
+    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="9"
+        rx="1.5"
+        fill="#ffffff"
+        stroke="#334155"
+        strokeWidth="1.25"
+      />
+      <path
+        d="M5.5 13.5h5M8 11.5v2"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="M5 5.2l1.2 3.8 1.8-2.7 1.8 2.7L11 5.2"
+        fill="none"
+        stroke="#0f172a"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function getOrCreateSessionId(): string {
   try {
@@ -248,7 +309,7 @@ export function PresenterConsole() {
 
   // Modals / Drawers state
   const [activeModal, setActiveModal] = useState<
-    'none' | 'grid' | 'outline' | 'help' | 'stats' | 'notes-import'
+    'none' | 'grid' | 'outline' | 'help' | 'stats' | 'notes-import' | 'ui-guide'
   >('none');
   const [helpInitialTab, setHelpInitialTab] = useState<HelpModalTab>('shortcuts');
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
@@ -1732,6 +1793,12 @@ export function PresenterConsole() {
           setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
           break;
         }
+        case 'i':
+        case 'I': {
+          e.preventDefault();
+          setActiveModal((prev) => (prev === 'ui-guide' ? 'none' : 'ui-guide'));
+          break;
+        }
         default:
           break;
       }
@@ -1868,8 +1935,6 @@ export function PresenterConsole() {
 
   const iconBtnClass =
     'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white';
-  const toolbarBtnClass =
-    'inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-slate-200 bg-slate-100 px-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white';
 
   const renderOutlineNodes = (nodes: OutlineNode[], depth = 0) => {
     return nodes.map((node, idx) => (
@@ -1932,18 +1997,19 @@ export function PresenterConsole() {
         className="flex shrink-0 flex-col border-b border-slate-200 bg-white text-xs text-slate-900 select-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
       >
         {/* Row 1: Files, Monitors, Audience & Global Toggles */}
-        <div className="flex h-10 flex-nowrap items-center justify-between gap-2 border-b border-slate-200/80 px-3 dark:border-slate-800/80">
-          <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+        <div className="flex h-10 flex-nowrap items-center justify-between gap-1.5 overflow-x-auto overflow-y-hidden border-b border-slate-200/80 px-2.5 [scrollbar-width:none] dark:border-slate-800/80 [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap">
             <span className="mr-1 text-sm font-bold tracking-tight text-slate-900 dark:text-white">
               {t.appTitle}
             </span>
 
             <button
               type="button"
+              data-coachmark-group="row1"
               onClick={() => pdfFileInputRef.current?.click()}
               title={t.openPdf}
               aria-label={t.openPdf}
-              className={toolbarBtnClass}
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-100 px-2 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
             >
               <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>{t.openPdf}</span>
@@ -1951,10 +2017,11 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row1"
               onClick={handleLoadSampleDeck}
               title={t.loadSampleDeck}
               aria-label={t.loadSampleDeck}
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded bg-blue-600 px-2.5 text-xs font-medium text-white transition hover:bg-blue-500"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded bg-blue-600 px-2 text-xs font-medium text-white transition hover:bg-blue-500"
             >
               <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>{t.sampleShortBtn}</span>
@@ -1964,10 +2031,11 @@ export function PresenterConsole() {
               <button
                 type="button"
                 data-testid="close-deck-button"
+                data-coachmark-group="row1"
                 title={t.recentDecksTooltip}
                 aria-label={t.recentDecksTooltip}
                 onClick={() => void handleCloseDeck()}
-                className={toolbarBtnClass}
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-100 px-2 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
               >
                 <History className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>{t.recentDecksBtn}</span>
@@ -1978,6 +2046,7 @@ export function PresenterConsole() {
               <button
                 type="button"
                 data-testid="watch-pdf-button"
+                data-coachmark-group="row1"
                 aria-pressed={pdfWatchStatus.active}
                 title={
                   pdfWatchStatus.active
@@ -1986,7 +2055,7 @@ export function PresenterConsole() {
                 }
                 aria-label={pdfWatchStatus.active ? t.stopWatch : t.watchPdf}
                 onClick={() => void handleToggleWatchPdf()}
-                className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded border px-2.5 text-xs font-medium transition ${
+                className={`inline-flex h-7 shrink-0 items-center gap-1 rounded border px-2 text-xs font-medium transition ${
                   pdfWatchStatus.active
                     ? 'border-amber-500 bg-amber-600 text-white hover:bg-amber-500'
                     : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
@@ -1998,17 +2067,19 @@ export function PresenterConsole() {
             )}
           </div>
 
-          <div className="flex shrink-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
+          <div className="flex shrink-0 flex-nowrap items-center gap-1 whitespace-nowrap">
             {(tauriMode || monitors.length > 0) && (
               <select
                 data-testid="monitor-select"
+                data-coachmark-group="row1"
+                title={t.monitorSelectTooltip}
                 aria-label="Target display"
                 value={selectedMonitorIndex !== undefined ? String(selectedMonitorIndex) : ''}
                 onChange={(e) => {
                   const raw = e.target.value;
                   setSelectedMonitorIndex(raw === '' ? undefined : Number.parseInt(raw, 10));
                 }}
-                className="h-7 w-[148px] truncate rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="h-7 w-[128px] truncate rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
                 {monitors.length === 0 ? (
                   <option value="">{t.defaultDisplay}</option>
@@ -2026,6 +2097,7 @@ export function PresenterConsole() {
               <button
                 type="button"
                 data-testid="refresh-monitors-button"
+                data-coachmark-group="row1"
                 aria-label={t.refreshDisplaysAria}
                 title={t.refreshDisplaysAria}
                 onClick={() => void refreshMonitors()}
@@ -2037,10 +2109,11 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row1"
               title={t.launchAudienceWindow}
               aria-label={t.launchAudienceWindow}
               onClick={() => void handleLaunchAudienceWindow()}
-              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded bg-emerald-600 px-2.5 text-xs font-medium text-white transition hover:bg-emerald-500"
+              className="inline-flex h-7 shrink-0 items-center gap-1 rounded bg-emerald-600 px-2 text-xs font-medium text-white transition hover:bg-emerald-500"
             >
               <Presentation className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>{t.audienceShortBtn}</span>
@@ -2048,7 +2121,9 @@ export function PresenterConsole() {
 
             <span
               data-testid="audience-status"
-              className={`inline-flex h-7 w-[108px] shrink-0 items-center justify-center gap-1.5 rounded border px-2 text-[11px] font-medium ${
+              data-coachmark-group="row1"
+              title={t.audienceStatusTooltip}
+              className={`inline-flex h-7 w-[92px] shrink-0 items-center justify-center gap-1 rounded border px-1.5 text-[11px] font-medium ${
                 audienceConnected
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/50 dark:bg-emerald-950 dark:text-emerald-300'
                   : 'border-slate-200 bg-slate-100 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
@@ -2071,6 +2146,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="theme-toggle"
+              data-coachmark-group="row1"
               aria-label={theme === 'dark' ? t.themeToLight : t.themeToDark}
               title={theme === 'dark' ? t.themeToLight : t.themeToDark}
               onClick={toggleTheme}
@@ -2086,10 +2162,11 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="locale-toggle"
+              data-coachmark-group="row1"
               title={t.localeToggleTitle}
               aria-label={t.localeToggleTitle}
               onClick={toggleLocale}
-              className="inline-flex h-7 w-[56px] shrink-0 items-center justify-center rounded border border-slate-300 bg-slate-100 px-1.5 font-mono text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              className="inline-flex h-7 w-[52px] shrink-0 items-center justify-center rounded border border-slate-300 bg-slate-100 px-1 font-mono text-[11px] font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               <span className={locale === 'ja' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}>
                 JP
@@ -2102,6 +2179,24 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-testid="ui-guide-overlay-toggle"
+              data-coachmark-group="row1"
+              aria-label={t.uiGuideBtn}
+              title={t.uiGuideBtn}
+              aria-pressed={activeModal === 'ui-guide'}
+              onClick={() => setActiveModal((prev) => (prev === 'ui-guide' ? 'none' : 'ui-guide'))}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                activeModal === 'ui-guide'
+                  ? 'border-sky-500 bg-sky-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
+              }`}
+            >
+              <Tag className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              data-coachmark-group="row1"
               aria-label={t.helpBtn}
               title={t.helpBtn}
               onClick={() => {
@@ -2116,13 +2211,14 @@ export function PresenterConsole() {
         </div>
 
         {/* Row 2: Slide Navigation, Stage Controls, Annotation Tools & View Modals */}
-        <div className="flex h-9 flex-nowrap items-center justify-between gap-2 px-3">
+        <div className="flex h-9 flex-nowrap items-center justify-between gap-1.5 overflow-x-auto overflow-y-hidden px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Left: Slide navigation & counter */}
-          <div className="flex h-7 min-w-[146px] shrink-0 flex-nowrap items-center gap-1">
+          <div className="flex h-7 min-w-[132px] shrink-0 flex-nowrap items-center gap-1">
             {meta && (
               <>
                 <button
                   type="button"
+                  data-coachmark-group="row2"
                   disabled={currentPage <= 1}
                   aria-label={t.prevSlideTooltip}
                   title={t.prevSlideTooltip}
@@ -2134,6 +2230,8 @@ export function PresenterConsole() {
 
                 <div
                   data-testid="slide-counter"
+                  data-coachmark-group="row2"
+                  title={t.jumpInputTooltip}
                   className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-xs text-slate-700 dark:border-slate-700/70 dark:bg-slate-950 dark:text-slate-200"
                 >
                   <input
@@ -2151,7 +2249,7 @@ export function PresenterConsole() {
                       }
                     }}
                     onBlur={() => commitSlideJump(jumpInputText)}
-                    className="w-10 rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    className="w-9 rounded border border-slate-300 bg-white px-1 py-0.5 text-center text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <span>/ {meta.numPages}</span>
                   <span className="sr-only">
@@ -2161,6 +2259,7 @@ export function PresenterConsole() {
 
                 <button
                   type="button"
+                  data-coachmark-group="row2"
                   disabled={currentPage >= meta.numPages}
                   aria-label={t.nextSlideTooltip}
                   title={t.nextSlideTooltip}
@@ -2178,9 +2277,11 @@ export function PresenterConsole() {
             <select
               aria-label="Crop mode"
               data-testid="crop-mode-select"
+              data-coachmark-group="row2"
+              title={t.cropSelectTooltip}
               value={cropMode}
               onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
-              className="h-7 w-[112px] rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="h-7 w-[100px] rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <option value="full">{t.cropFull}</option>
               <option value="split-horizontal">{t.cropSplitHorizontal}</option>
@@ -2189,6 +2290,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.swapHalves}
               title={t.swapHalves}
               disabled={cropMode === 'full'}
@@ -2205,6 +2307,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.blackoutBtn}
               title={t.blackoutBtn}
               aria-pressed={curtainMode === 'black'}
@@ -2215,11 +2318,12 @@ export function PresenterConsole() {
                   : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <MonitorOff className="h-3.5 w-3.5" aria-hidden="true" />
+              <BlackoutScreenIcon />
             </button>
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.whiteoutBtn}
               title={t.whiteoutBtn}
               aria-pressed={curtainMode === 'white'}
@@ -2230,11 +2334,12 @@ export function PresenterConsole() {
                   : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
+              <WhiteoutScreenIcon />
             </button>
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.freezeBtn}
               title={t.freezeBtn}
               aria-pressed={frozen}
@@ -2255,6 +2360,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.laserBtn}
               title={t.laserBtn}
               aria-pressed={pointerTool === 'laser'}
@@ -2268,122 +2374,159 @@ export function PresenterConsole() {
               <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
 
-            <button
-              type="button"
-              aria-label={t.penBtn}
-              title={t.penBtn}
-              aria-pressed={pointerTool === 'pen'}
-              onClick={() => handleToggleTool('pen')}
-              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
-                pointerTool === 'pen'
-                  ? 'border-red-500 bg-red-600 text-white'
-                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            {/* Pen Tool Group: Toggle + Swatches + Live Thickness Stepper */}
+            <div className="flex h-7 shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-50/90 px-1 dark:border-slate-800 dark:bg-slate-950/60">
+              <button
+                type="button"
+                data-coachmark-group="row2"
+                aria-label={t.penBtn}
+                title={t.penBtn}
+                aria-pressed={pointerTool === 'pen'}
+                onClick={() => handleToggleTool('pen')}
+                className={`inline-flex h-5 w-6 shrink-0 items-center justify-center rounded transition ${
+                  pointerTool === 'pen'
+                    ? 'bg-red-600 text-white'
+                    : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                }`}
+              >
+                <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
 
-            <div
-              role="group"
-              aria-label="Ink colors"
-              className="flex h-7 shrink-0 items-center gap-1 rounded border border-slate-300 bg-slate-200/80 px-1.5 dark:border-slate-800 dark:bg-slate-950/70"
-            >
-              {PEN_COLOR_SWATCHES.map((swatch) => {
-                const selected = penColor === swatch.hex;
-                const isWhite = swatch.id === 'white';
-                return (
-                  <button
-                    key={swatch.id}
-                    type="button"
-                    data-testid={`pen-color-${swatch.id}`}
-                    aria-label={`Ink color ${swatch.label}`}
-                    aria-pressed={selected}
-                    title={swatch.label}
-                    onClick={() => handleSelectPenColor(swatch.hex)}
-                    style={{ backgroundColor: swatch.hex }}
-                    className={`h-4 w-4 rounded-full border transition ${
-                      selected
-                        ? 'scale-110 border-slate-900 ring-2 ring-blue-500 dark:border-white dark:ring-blue-400'
-                        : isWhite
-                          ? 'border-slate-500 opacity-95 hover:opacity-100'
-                          : 'border-slate-500/60 opacity-85 hover:opacity-100 dark:border-slate-600'
+              <div
+                role="group"
+                data-coachmark-group="row2"
+                title={t.inkColorsLabel}
+                aria-label="Ink colors"
+                className="flex items-center gap-1 px-0.5"
+              >
+                {PEN_COLOR_SWATCHES.map((swatch) => {
+                  const selected = penColor === swatch.hex;
+                  const isWhite = swatch.id === 'white';
+                  return (
+                    <button
+                      key={swatch.id}
+                      type="button"
+                      data-testid={`pen-color-${swatch.id}`}
+                      aria-label={`Ink color ${swatch.label}`}
+                      aria-pressed={selected}
+                      title={swatch.label}
+                      onClick={() => handleSelectPenColor(swatch.hex)}
+                      style={{ backgroundColor: swatch.hex }}
+                      className={`h-3.5 w-3.5 rounded-full border transition ${
+                        selected
+                          ? 'scale-110 border-slate-900 ring-2 ring-blue-500 dark:border-white dark:ring-blue-400'
+                          : isWhite
+                            ? 'border-slate-500 opacity-95 hover:opacity-100'
+                            : 'border-slate-500/60 opacity-85 hover:opacity-100 dark:border-slate-600'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+
+              <span className="h-4 w-px bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+
+              <div
+                role="group"
+                data-coachmark-group="row2"
+                title={t.penWidthLabel}
+                aria-label="Pen width"
+                className="flex h-5 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700/80 dark:bg-slate-800"
+              >
+                <button
+                  type="button"
+                  aria-label="Pen size -"
+                  title={t.penMinus}
+                  onClick={() => handleAdjustPenSize(-0.004)}
+                  className="inline-flex h-full w-5 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Minus className="h-2.5 w-2.5" aria-hidden="true" />
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="flex h-full w-4 items-center justify-center bg-slate-100 dark:bg-slate-900"
+                >
+                  <span
+                    style={{
+                      backgroundColor: penColor,
+                      width: `${Math.max(4, Math.min(10, Math.round(penWidth * 550 + 3)))}px`,
+                      height: `${Math.max(4, Math.min(10, Math.round(penWidth * 550 + 3)))}px`,
+                    }}
+                    className={`rounded-full ${
+                      penColor.toLowerCase() === '#ffffff' ? 'ring-1 ring-slate-500' : ''
                     }`}
                   />
-                );
-              })}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Pen size +"
+                  title={t.penPlus}
+                  onClick={() => handleAdjustPenSize(0.004)}
+                  className="inline-flex h-full w-5 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Plus className="h-2.5 w-2.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
-            <div
-              role="group"
-              aria-label="Pen width"
-              className="flex h-7 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-slate-100 dark:border-slate-700/70 dark:bg-slate-800"
-            >
+            {/* Spotlight Tool Group: Toggle + Radius Percentage Stepper */}
+            <div className="flex h-7 shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-50/90 px-1 dark:border-slate-800 dark:bg-slate-950/60">
               <button
                 type="button"
-                aria-label="Pen size -"
-                title={t.penMinus}
-                onClick={() => handleAdjustPenSize(-0.004)}
-                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+                data-coachmark-group="row2"
+                aria-label={t.spotlightBtn}
+                title={t.spotlightBtn}
+                aria-pressed={pointerTool === 'spotlight'}
+                onClick={() => handleToggleTool('spotlight')}
+                className={`inline-flex h-5 w-6 shrink-0 items-center justify-center rounded transition ${
+                  pointerTool === 'spotlight'
+                    ? 'bg-amber-600 text-white'
+                    : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
+                }`}
               >
-                <Minus className="h-3 w-3" aria-hidden="true" />
+                <Focus className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
-              <span className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
-              <button
-                type="button"
-                aria-label="Pen size +"
-                title={t.penPlus}
-                onClick={() => handleAdjustPenSize(0.004)}
-                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <Plus className="h-3 w-3" aria-hidden="true" />
-              </button>
-            </div>
 
-            <button
-              type="button"
-              aria-label={t.spotlightBtn}
-              title={t.spotlightBtn}
-              aria-pressed={pointerTool === 'spotlight'}
-              onClick={() => handleToggleTool('spotlight')}
-              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
-                pointerTool === 'spotlight'
-                  ? 'border-amber-500 bg-amber-600 text-white'
-                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Focus className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-
-            <div
-              role="group"
-              aria-label="Spotlight radius"
-              className="flex h-7 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-slate-100 dark:border-slate-700/70 dark:bg-slate-800"
-            >
-              <button
-                type="button"
-                data-testid="spotlight-size-down"
-                aria-label="Spotlight size -"
-                title={`${t.spotMinus} (${Math.round(spotlightRadius * 100)}%)`}
-                onClick={() => handleAdjustSpotlightRadius(-0.04)}
-                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+              <div
+                role="group"
+                data-coachmark-group="row2"
+                title={t.spotlightSizeLabel}
+                aria-label="Spotlight radius"
+                className="flex h-5 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700/80 dark:bg-slate-800"
               >
-                <Minus className="h-3 w-3" aria-hidden="true" />
-              </button>
-              <span className="h-3.5 w-px bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
-              <button
-                type="button"
-                data-testid="spotlight-size-up"
-                aria-label="Spotlight size +"
-                title={`${t.spotPlus} (${Math.round(spotlightRadius * 100)}%)`}
-                onClick={() => handleAdjustSpotlightRadius(0.04)}
-                className="inline-flex h-full w-6 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                <Plus className="h-3 w-3" aria-hidden="true" />
-              </button>
+                <button
+                  type="button"
+                  data-testid="spotlight-size-down"
+                  aria-label="Spotlight size -"
+                  title={`${t.spotMinus} (${Math.round(spotlightRadius * 100)}%)`}
+                  onClick={() => handleAdjustSpotlightRadius(-0.04)}
+                  className="inline-flex h-full w-5 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Minus className="h-2.5 w-2.5" aria-hidden="true" />
+                </button>
+                <span
+                  data-testid="spotlight-radius-readout"
+                  aria-hidden="true"
+                  className="inline-flex h-full min-w-[26px] items-center justify-center bg-slate-100 px-1 font-mono text-[10px] font-semibold text-slate-700 tabular-nums dark:bg-slate-900 dark:text-slate-300"
+                >
+                  {Math.round(spotlightRadius * 100)}%
+                </span>
+                <button
+                  type="button"
+                  data-testid="spotlight-size-up"
+                  aria-label="Spotlight size +"
+                  title={`${t.spotPlus} (${Math.round(spotlightRadius * 100)}%)`}
+                  onClick={() => handleAdjustSpotlightRadius(0.04)}
+                  className="inline-flex h-full w-5 items-center justify-center text-slate-700 hover:bg-slate-200 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  <Plus className="h-2.5 w-2.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.undoBtn}
               title={t.undoBtn}
               onClick={handleUndoStroke}
@@ -2394,6 +2537,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.clearInkBtn}
               title={t.clearInkBtn}
               onClick={handleClearInk}
@@ -2405,6 +2549,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="toggle-ink-visibility"
+              data-coachmark-group="row2"
               aria-label={t.inkBtn}
               title={t.inkBtn}
               aria-pressed={inkVisible}
@@ -2428,6 +2573,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="guard-toggle"
+              data-coachmark-group="row2"
               aria-label={t.guardBtn}
               title={t.guardBtn}
               aria-pressed={guardEnabled}
@@ -2448,6 +2594,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-testid="open-stats-button"
+              data-coachmark-group="row2"
               aria-label={t.statsBtn}
               title={t.statsBtn}
               disabled={!meta}
@@ -2463,6 +2610,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.gridAria}
               title={t.gridBtn}
               onClick={() => setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'))}
@@ -2473,6 +2621,7 @@ export function PresenterConsole() {
 
             <button
               type="button"
+              data-coachmark-group="row2"
               aria-label={t.outlineBtn}
               title={t.outlineBtn}
               onClick={() => setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'))}
@@ -2723,9 +2872,9 @@ export function PresenterConsole() {
           )}
         </div>
       ) : (
-        <div className="grid flex-1 grid-cols-12 gap-3 overflow-hidden p-3">
+        <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-12 lg:overflow-hidden">
           {/* Left / Center: Current Slide Stage */}
-          <div className="col-span-7 flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+          <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm lg:col-span-7 lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
             <SlideStage
               engine={engineRef.current}
               deckId={meta.deckId}
@@ -2779,13 +2928,13 @@ export function PresenterConsole() {
           </div>
 
           {/* Right Column: Next Preview + Timer + Speaker Notes */}
-          <div className="col-span-5 flex flex-col gap-3 overflow-hidden">
+          <div className="flex flex-col gap-3 lg:col-span-5 lg:overflow-hidden">
             {/* Top row of right column: Next Slide Preview & Timer Panel */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-12 gap-2.5">
               {/* Next Slide Preview */}
               <section
                 aria-label="Next slide panel"
-                className="flex flex-col rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                className="col-span-5 flex flex-col rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
               >
                 <div className="mb-1.5 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-semibold uppercase tracking-wider">{t.nextSlide}</span>
@@ -2823,7 +2972,7 @@ export function PresenterConsole() {
               <section
                 data-testid="timer-panel"
                 aria-label="Timer panel"
-                className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                className="col-span-7 flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
               >
                 <div className="flex items-center justify-between">
                   <div className="font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -2904,7 +3053,7 @@ export function PresenterConsole() {
                 </div>
 
                 {/* Per-slide timer */}
-                <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="mb-1.5 flex items-center justify-between gap-1 text-[11px] whitespace-nowrap text-slate-500 dark:text-slate-400">
                   <span>
                     {t.slidePrefix}{' '}
                     <strong
@@ -2917,7 +3066,7 @@ export function PresenterConsole() {
                       ? ` / ${formatDurationMMSS(currentSlideEntry.targetSeconds * 1000)}`
                       : ''}
                   </span>
-                  <label className="flex cursor-pointer items-center gap-1">
+                  <label className="flex shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap">
                     <input
                       type="checkbox"
                       aria-label="Auto-start timer"
@@ -2937,21 +3086,21 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     onClick={startTimer}
-                    className="flex-1 rounded bg-emerald-600 px-2 py-1 font-medium text-white hover:bg-emerald-500 dark:bg-emerald-700 dark:hover:bg-emerald-600"
+                    className="flex-1 whitespace-nowrap rounded bg-emerald-600 px-1.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-500 xl:text-xs dark:bg-emerald-700 dark:hover:bg-emerald-600"
                   >
                     {t.start}
                   </button>
                   <button
                     type="button"
                     onClick={pauseTimer}
-                    className="flex-1 rounded bg-amber-600 px-2 py-1 font-medium text-white hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
+                    className="flex-1 whitespace-nowrap rounded bg-amber-600 px-1.5 py-1 text-[11px] font-medium text-white hover:bg-amber-500 xl:text-xs dark:bg-amber-700 dark:hover:bg-amber-600"
                   >
                     {t.pause}
                   </button>
                   <button
                     type="button"
                     onClick={resetTimer}
-                    className="flex-1 rounded border border-slate-300 bg-slate-100 px-2 py-1 font-medium text-slate-700 hover:bg-slate-200 dark:border-transparent dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="flex-1 whitespace-nowrap rounded border border-slate-300 bg-slate-100 px-1.5 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-200 xl:text-xs dark:border-transparent dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     {t.reset}
                   </button>
@@ -2959,8 +3108,8 @@ export function PresenterConsole() {
 
                 {/* Duration, Warning & End-Time inputs */}
                 <div className="grid grid-cols-3 gap-1 text-[10px]">
-                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
-                    <span>{t.durationMin}</span>
+                  <label className="flex min-w-0 flex-col text-slate-500 dark:text-slate-400">
+                    <span className="truncate">{t.durationMin}</span>
                     <input
                       type="number"
                       aria-label="Countdown duration (min)"
@@ -2977,8 +3126,8 @@ export function PresenterConsole() {
                     />
                   </label>
 
-                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
-                    <span>{t.warningMin}</span>
+                  <label className="flex min-w-0 flex-col text-slate-500 dark:text-slate-400">
+                    <span className="truncate">{t.warningMin}</span>
                     <input
                       type="number"
                       aria-label="Last minutes warning"
@@ -2995,8 +3144,8 @@ export function PresenterConsole() {
                     />
                   </label>
 
-                  <label className="flex flex-col text-slate-500 dark:text-slate-400">
-                    <span>{t.endTimeLabel}</span>
+                  <label className="flex min-w-0 flex-col text-slate-500 dark:text-slate-400">
+                    <span className="truncate">{t.endTimeLabel}</span>
                     <input
                       type="time"
                       aria-label="End time"
@@ -3019,32 +3168,38 @@ export function PresenterConsole() {
             <section
               data-testid="notes-panel"
               aria-label="Speaker notes"
-              className="flex flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+              className="flex min-h-[220px] flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-3 shadow-sm lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
             >
-              <div className="mb-2 flex h-9 shrink-0 flex-nowrap items-center justify-between gap-1.5 border-b border-slate-200 pb-1.5 text-xs dark:border-slate-800">
-                <div className="flex min-w-0 flex-nowrap items-center gap-1.5 whitespace-nowrap">
-                  <span className="font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              <div className="mb-2 flex h-9 shrink-0 flex-nowrap items-center justify-between gap-1 border-b border-slate-200 pb-1.5 text-xs dark:border-slate-800">
+                <div className="flex min-w-0 flex-nowrap items-center gap-1 whitespace-nowrap">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-700 xl:text-xs dark:text-slate-300">
                     {t.speakerNotesTitle}
                   </span>
                   <button
                     type="button"
+                    data-coachmark-group="notes"
                     aria-label={t.fontDecreaseTooltip}
                     title={t.fontDecreaseTooltip}
                     onClick={() => void handleAdjustFontSize(-2)}
-                    className="inline-flex h-7 items-center justify-center rounded border border-slate-200 bg-slate-100 px-2 font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex h-6 items-center justify-center rounded border border-slate-200 bg-slate-100 px-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200 xl:h-7 xl:px-2 xl:text-xs dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     A-
                   </button>
                   <button
                     type="button"
+                    data-coachmark-group="notes"
                     aria-label={t.fontIncreaseTooltip}
                     title={t.fontIncreaseTooltip}
                     onClick={() => void handleAdjustFontSize(2)}
-                    className="inline-flex h-7 items-center justify-center rounded border border-slate-200 bg-slate-100 px-2 font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex h-6 items-center justify-center rounded border border-slate-200 bg-slate-100 px-1.5 text-[11px] font-medium text-slate-700 hover:bg-slate-200 xl:h-7 xl:px-2 xl:text-xs dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     A+
                   </button>
-                  <label className="ml-0.5 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <label
+                    data-coachmark-group="notes"
+                    title={t.slideTargetTooltip}
+                    className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
+                  >
                     <span>{t.targetLabel}</span>
                     <input
                       type="number"
@@ -3063,7 +3218,7 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => void commitSlideTargetInput(slideTargetInputText)}
-                      className="h-6 w-11 rounded border border-slate-300 bg-slate-50 px-1 text-center font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="h-6 w-9 rounded border border-slate-300 bg-slate-50 px-1 text-center font-mono text-xs text-slate-900 xl:w-10 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                     <span>{t.secondsUnit}</span>
                   </label>
@@ -3073,20 +3228,22 @@ export function PresenterConsole() {
                   {!isEditingNotes ? (
                     <button
                       type="button"
+                      data-coachmark-group="notes"
                       aria-label={t.editNotesBtn}
                       title={t.editNotesBtn}
                       onClick={openNotesEditor}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded bg-blue-600 text-white transition hover:bg-blue-500"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded bg-blue-600 text-white transition hover:bg-blue-500 xl:h-7 xl:w-7"
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   ) : (
                     <button
                       type="button"
+                      data-coachmark-group="notes"
                       aria-label={t.saveNotesBtn}
                       title={t.saveNotesBtn}
                       onClick={() => void saveNotesEditor()}
-                      className="inline-flex h-7 w-7 items-center justify-center rounded bg-emerald-600 text-white transition hover:bg-emerald-500"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white transition hover:bg-emerald-500 xl:h-7 xl:w-7"
                     >
                       <Check className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -3095,20 +3252,22 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     data-testid="open-notes-import-button"
+                    data-coachmark-group="notes"
                     aria-label={t.importNotesBtn}
                     title={t.importNotesBtn}
                     onClick={() => setActiveModal('notes-import')}
-                    className={iconBtnClass}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 xl:h-7 xl:w-7 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
                   >
                     <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
 
                   <button
                     type="button"
+                    data-coachmark-group="notes"
                     aria-label={t.importEmbeddedBtn}
                     title={t.importEmbeddedBtn}
                     onClick={() => void handleImportEmbeddedNotes()}
-                    className={iconBtnClass}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-slate-200 bg-slate-100 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 xl:h-7 xl:w-7 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
                   >
                     <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -3116,12 +3275,13 @@ export function PresenterConsole() {
                   <div ref={exportMenuRef} className="relative">
                     <button
                       type="button"
+                      data-coachmark-group="notes"
                       aria-haspopup="menu"
                       aria-expanded={exportMenuOpen}
                       aria-label={t.exportNotesBtn}
                       title={t.exportNotesBtn}
                       onClick={() => setExportMenuOpen((prev) => !prev)}
-                      className="inline-flex h-7 items-center gap-1 rounded border border-slate-200 bg-slate-100 px-2 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+                      className="inline-flex h-6 items-center gap-0.5 rounded border border-slate-200 bg-slate-100 px-1.5 text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 xl:h-7 xl:px-2 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
                     >
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
                       <ChevronDown className="h-3 w-3 opacity-75" aria-hidden="true" />
@@ -3338,6 +3498,11 @@ export function PresenterConsole() {
       {/* Help & Quick Start Modal (?) */}
       {activeModal === 'help' && (
         <HelpModal initialTab={helpInitialTab} onClose={() => setActiveModal('none')} />
+      )}
+
+      {/* Simultaneous UI Tooltips Overlay (I) */}
+      {activeModal === 'ui-guide' && (
+        <UiGuideOverlay onClose={() => setActiveModal('none')} />
       )}
 
       {/* Rehearsal Stats Modal (R) */}

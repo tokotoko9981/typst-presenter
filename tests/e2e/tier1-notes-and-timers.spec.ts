@@ -488,7 +488,7 @@ test.describe('Tier 1 — Area D: Timers & Pacing Engine', () => {
     await focusSlideStage(page);
     await pressShortcut(page, SHORTCUTS.next);
     await expect(async () => {
-      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 8 });
+      expect(await getSlideCounter(page)).toEqual({ current: 2, total: 9 });
     }).toPass({ timeout: 5_000 });
 
     if ((await slideElapsed.count()) > 0) {

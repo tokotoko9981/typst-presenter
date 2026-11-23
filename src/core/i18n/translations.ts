@@ -55,8 +55,16 @@ export interface TranslationDict {
   spotlightBtn: string;
   spotMinus: string;
   spotPlus: string;
+  spotlightSizeLabel: string;
   penMinus: string;
   penPlus: string;
+  penWidthLabel: string;
+  inkColorsLabel: string;
+  jumpInputTooltip: string;
+  cropSelectTooltip: string;
+  monitorSelectTooltip: string;
+  audienceStatusTooltip: string;
+  slideTargetTooltip: string;
   undoBtn: string;
   clearInkBtn: string;
   inkBtn: string;
@@ -66,6 +74,12 @@ export interface TranslationDict {
   gridAria: string;
   outlineBtn: string;
   helpBtn: string;
+  uiGuideBtn: string;
+  uiGuideHeaderTitle: string;
+  uiGuideRow1: string;
+  uiGuideRow2: string;
+  uiGuideNotes: string;
+  uiGuideCloseHint: string;
   quickGuideBtn: string;
   localeToggleTitle: string;
   themeToLight: string;
@@ -184,6 +198,7 @@ export interface TranslationDict {
   shortcutGrid: string;
   shortcutOutline: string;
   shortcutEditNotes: string;
+  shortcutUiGuide: string;
   helpFormatMarkdownTitle: string;
   helpFormatMarkdownBody: string;
   helpFormatMarpTitle: string;
@@ -266,8 +281,16 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     spotlightBtn: 'Spotlight (S)',
     spotMinus: 'Smaller Spotlight ([)',
     spotPlus: 'Larger Spotlight (])',
+    spotlightSizeLabel: 'Spotlight Size ([ / ])',
     penMinus: 'Thinner Pen (-)',
     penPlus: 'Thicker Pen (+)',
+    penWidthLabel: 'Pen Width (- / +)',
+    inkColorsLabel: 'Ink Colors (Red/Blue/Yellow/Green/White)',
+    jumpInputTooltip: 'Jump to Slide Number (Enter)',
+    cropSelectTooltip: 'Split-Page Crop Mode',
+    monitorSelectTooltip: 'Audience Target Display',
+    audienceStatusTooltip: 'Audience Sync Connection',
+    slideTargetTooltip: 'Target Seconds for This Slide',
     undoBtn: 'Undo Stroke',
     clearInkBtn: 'Clear Ink (C)',
     inkBtn: 'Toggle Ink Visibility (H)',
@@ -277,6 +300,12 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     gridAria: 'Thumbnail Overview (G)',
     outlineBtn: 'Outline (O)',
     helpBtn: 'Help & Shortcuts (?)',
+    uiGuideBtn: 'Show All Tooltips (I)',
+    uiGuideHeaderTitle: 'UI Controls Guide (I)',
+    uiGuideRow1: 'Top Bar',
+    uiGuideRow2: 'Stage & Tools',
+    uiGuideNotes: 'Notes Header',
+    uiGuideCloseHint: 'Click anywhere or press Esc / I to close',
     quickGuideBtn: 'Quick Guide (?)',
     localeToggleTitle: 'Switch language (JP / EN)',
     themeToLight: 'Switch to Light Mode',
@@ -401,6 +430,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutGrid: 'Open Slide Grid',
     shortcutOutline: 'Open PDF Outline',
     shortcutEditNotes: 'Edit Current Slide Notes',
+    shortcutUiGuide: 'Show All UI Tooltips Overlay',
 
     helpFormatMarkdownTitle: 'Markdown (--- or <!-- slide: N -->)',
     helpFormatMarkdownBody:
@@ -459,13 +489,13 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     loadSampleDeck: 'サンプル読込',
     recentDecksBtn: '履歴',
     recentDecksTooltip: '最近開いた資料一覧へ戻る',
-    watchPdf: '監視',
-    watchPdfTooltip: 'PDF ファイルの変更を自動再読込する（Chromium 系ブラウザ）',
-    stopWatch: '監視中',
+    watchPdf: '自動更新',
+    watchPdfTooltip: 'PDF 更新時に自動再読込（Chromium）',
+    stopWatch: '自動更新中',
     defaultDisplay: '既定ディスプレイ',
     primaryTag: '[メイン]',
-    displaysBtn: '画面更新',
-    refreshDisplaysAria: 'ディスプレイ一覧を更新',
+    displaysBtn: '画面再検出',
+    refreshDisplaysAria: '外部ディスプレイを再検出',
     audienceShortBtn: '聴衆画面',
     launchAudienceWindow: '聴衆ウィンドウを開く',
     audienceConnected: '接続中',
@@ -484,19 +514,33 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     laserBtn: 'レーザー (L)',
     penBtn: 'ペン (D)',
     spotlightBtn: 'スポットライト (S)',
-    spotMinus: 'スポット縮小 ([)',
-    spotPlus: 'スポット拡大 (])',
+    spotMinus: 'スポット半径 縮小 ([)',
+    spotPlus: 'スポット半径 拡大 (])',
+    spotlightSizeLabel: 'スポット半径 ([ / ])',
     penMinus: 'ペン細く (-)',
     penPlus: 'ペン太く (+)',
-    undoBtn: '描線を1つ戻す',
-    clearInkBtn: '描線を消去 (C)',
-    inkBtn: '描線の表示切替 (H)',
+    penWidthLabel: 'ペン太さ (- / +)',
+    inkColorsLabel: 'ペン色 (5色)',
+    jumpInputTooltip: 'ページ番号移動 (数字 + Enter)',
+    cropSelectTooltip: '画面分割モード切替',
+    monitorSelectTooltip: '聴衆用の投影先ディスプレイ',
+    audienceStatusTooltip: '聴衆画面との接続状態',
+    slideTargetTooltip: 'このスライドの目標時間 (秒)',
+    undoBtn: '直前の線を戻す',
+    clearInkBtn: '手書きを消去 (C)',
+    inkBtn: '手書きの表示切替 (H)',
     guardBtn: '誤リロード防止',
     statsBtn: 'リハーサル分析 (R)',
     gridBtn: 'スライド一覧 (G)',
     gridAria: '一覧サムネイル (G)',
     outlineBtn: '目次アウトライン (O)',
     helpBtn: 'ヘルプ・ショートカット (?)',
+    uiGuideBtn: 'ボタン説明を一括表示 (I)',
+    uiGuideHeaderTitle: 'ボタン説明オーバーレイ (I)',
+    uiGuideRow1: '上部バー',
+    uiGuideRow2: '操作・強調',
+    uiGuideNotes: 'ノート欄',
+    uiGuideCloseHint: '画面クリックまたは Esc / I で閉じる',
     quickGuideBtn: '使い方ガイド (?)',
     localeToggleTitle: '表示言語を切替 (JP / EN)',
     themeToLight: 'ライトモードへ切替',
@@ -596,7 +640,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     helpTabFormats: 'ノート書式',
     helpQuickStep1Title: '1. スライド PDF を開く',
     helpQuickStep1Body:
-      'PDF を選択またはドロップします（縦型・混在サイズ・Touying 分割に対応）。Chromium 系ブラウザでは「監視」で typst watch と連動し自動再読込できます。',
+      'PDF を選択またはドロップします（縦型・混在サイズ・Touying 分割に対応）。Chromium 系ブラウザでは「自動更新」で typst watch と連動し自動再読込できます。',
     helpQuickStep2Title: '2. ノートと目標時間を設定',
     helpQuickStep2Body:
       'ノート欄の取込ボタンから .md・Marp・Slidev・.pdfpc・PDF注釈を読み込むか、E キーで編集します。<!-- target: 45 --> でスライド別秒数を設定できます。',
@@ -621,6 +665,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutGrid: 'スライド一覧グリッドを開く',
     shortcutOutline: 'PDF 見出しアウトラインを開く',
     shortcutEditNotes: '発表者ノートを編集',
+    shortcutUiGuide: '全ボタンの説明を一括オーバーレイ表示',
 
     helpFormatMarkdownTitle: 'Markdown ノート (--- / <!-- slide: N -->)',
     helpFormatMarkdownBody:
@@ -659,7 +704,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     audienceStandbySubtitle: '待機中 — 発表者画面でスライドが開かれると表示されます。',
     fullscreenPrompt: 'クリックまたは F キーで全画面',
 
-    msgWatchStopped: 'PDF ファイルの監視を停止しました。',
+    msgWatchStopped: 'PDF の自動更新を停止しました。',
     msgNoEmbeddedNotes: 'この PDF には埋め込みノートが見つかりませんでした。',
     msgUnsupportedDrop:
       '未対応の形式です。.pdf またはノートファイル (.md, .markdown, .json, .pdfpc) をドロップしてください。',

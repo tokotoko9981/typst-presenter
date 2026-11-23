@@ -155,6 +155,7 @@ export function HelpModal({ initialTab = 'shortcuts', onClose }: HelpModalProps)
                 [['G', 'Tab'], t.shortcutGrid],
                 [['O'], t.shortcutOutline],
                 [['E'], t.shortcutEditNotes],
+                [['I'], t.shortcutUiGuide],
               ].map(([keys, desc]) => (
                 <li key={desc as string} className="flex items-center gap-2">
                   <span className="flex shrink-0 items-center gap-1">

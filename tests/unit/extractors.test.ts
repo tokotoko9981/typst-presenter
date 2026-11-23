@@ -324,9 +324,9 @@ describe('PDF extractors', () => {
         getAttachments: async () =>
           new Map([['sample', { filename: 'sample-notes.md', content: encoder.encode(sampleNotesMd) }]]),
       });
-      expect(Object.keys(parsedSample.notes).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(Object.keys(parsedSample.notes).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
       expect(parsedSample.notes[1]).toContain('オープニング');
-      expect(parsedSample.notes[8]).toContain('まとめ');
+      expect(parsedSample.notes[9]).toContain('まとめ');
     });
 
     it('rejects non-positive duration/noteFontSize and negative lastMinutes in .pdfpc v2 config', async () => {

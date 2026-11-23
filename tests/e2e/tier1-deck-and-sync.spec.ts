@@ -52,7 +52,7 @@ test.describe('Tier 1 — Area A: Deck Loading & Rendering', () => {
     await loadSampleDeck(page);
 
     const counter = await getSlideCounter(page);
-    expect(counter).toEqual({ current: 1, total: 8 });
+    expect(counter).toEqual({ current: 1, total: 9 });
 
     const currentCanvas = getPresenterSlideCanvas(page);
     await expect(currentCanvas).toBeVisible();

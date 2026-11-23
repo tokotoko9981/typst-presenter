@@ -28,15 +28,15 @@ describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
 
       expect(meta.deckId).toBe(expectedHash);
       expect(meta.byteLength).toBe(rawBytes.byteLength);
-      expect(meta.numPages).toBe(8);
+      expect(meta.numPages).toBe(9);
       if (meta.pageLabels !== null) {
-        expect(meta.pageLabels).toHaveLength(8);
+        expect(meta.pageLabels).toHaveLength(9);
       }
       expect(meta.firstPageAspectRatio).toBeCloseTo(16 / 9, 2);
       expect(meta.suggestedCropMode).toBe('full');
 
-      // Outline should contain sections for slides 2..8 with resolved 1-based pages
-      expect(meta.outline.length).toBeGreaterThanOrEqual(7);
+      // Outline should contain sections for slides 2..9 with resolved 1-based pages
+      expect(meta.outline.length).toBeGreaterThanOrEqual(8);
       const flattenedTitles: Array<{ title: string; pageNumber: number | null }> = [];
       const walk = (nodes: typeof meta.outline) => {
         for (const node of nodes) {
@@ -52,9 +52,10 @@ describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
       expect(flattenedTitles.some((n) => n.title.includes('機能 2') && n.pageNumber === 5)).toBe(true);
       expect(flattenedTitles.some((n) => n.title.includes('機能 3') && n.pageNumber === 6)).toBe(true);
       expect(flattenedTitles.some((n) => n.title.includes('機能 4') && n.pageNumber === 7)).toBe(true);
-      expect(flattenedTitles.some((n) => n.title.includes('まとめ') && n.pageNumber === 8)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('機能 5') && n.pageNumber === 8)).toBe(true);
+      expect(flattenedTitles.some((n) => n.title.includes('まとめ') && n.pageNumber === 9)).toBe(true);
 
-      // Verify sample-notes.md covers all 8 slides
+      // Verify sample-notes.md covers all 9 slides
       const notesMd = readFileSync(notesPath, 'utf8');
       for (let slide = 1; slide <= meta.numPages; slide += 1) {
         expect(notesMd).toContain(`<!-- slide: ${slide} -->`);

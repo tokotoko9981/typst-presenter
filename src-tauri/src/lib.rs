@@ -92,7 +92,7 @@ fn apply_monitor_and_fullscreen(
 }
 
 #[tauri::command]
-pub fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
+fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
     let available = app.available_monitors().map_err(|e| e.to_string())?;
     let primary = app.primary_monitor().map_err(|e| e.to_string())?;
 
@@ -128,7 +128,7 @@ pub fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
 }
 
 #[tauri::command]
-pub fn open_audience_window(
+fn open_audience_window(
     app: AppHandle,
     session_id: String,
     monitor_index: Option<usize>,
@@ -152,7 +152,7 @@ pub fn open_audience_window(
 }
 
 #[tauri::command]
-pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
+fn close_audience_window(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("audience") {
         window.close().map_err(|e| e.to_string())?;
     }
@@ -160,7 +160,7 @@ pub fn close_audience_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn set_audience_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), String> {
+fn set_audience_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("audience")
         .ok_or_else(|| "Audience window is not open".to_string())?;
@@ -169,7 +169,7 @@ pub fn set_audience_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), S
 }
 
 #[tauri::command]
-pub fn get_platform_info() -> PlatformInfo {
+fn get_platform_info() -> PlatformInfo {
     PlatformInfo {
         runtime: "tauri".to_string(),
         os: std::env::consts::OS.to_string(),

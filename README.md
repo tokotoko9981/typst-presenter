@@ -111,13 +111,18 @@ npm run tauri:build
 
 ## 開発引き継ぎ・次期拡張計画
 
-現在のモジュール構成・テスト実行上の制約（PowerShell / Vitest / Playwright）・E2E セレクタ契約・次期タスク（Typst 直接コンパイル、単一ファイル対応、黒画面アイコン／UI オーバーレイ改善、発表チャイム SE 等）は [**docs/HANDOFF.md**](./docs/HANDOFF.md) にまとめています。
+現在のモジュール構成・テスト実行上の制約（PowerShell / Vitest / Playwright）・E2E セレクタ契約は [**docs/HANDOFF.md**](./docs/HANDOFF.md)、合意済みのフェーズ別実装ロードマップは [**docs/ROADMAP.md**](./docs/ROADMAP.md) にまとめています。
 
 ---
 
 ## Roadmap
 
-- **Tauri v2 デスクトップ `.typ` 直接コンパイル（ローカルフォント対応）**: システムにインストール済みの `typst` CLI または Tauri Sidecar 経由で `.typ` ソースファイルを直接読み込み・監視コンパイルし、ローカルフォントを活用したシームレスなリアルタイムプレビュー＆発表ワークフローを提供する予定です。
+詳細は [**docs/ROADMAP.md**](./docs/ROADMAP.md) を参照してください。
+
+- **Phase 1 (v0.2.1)**: 黒画面アイコン改善、プレゼンターリモコン互換ショートカット、聴衆画面フルスクリーン時 UI 非表示、`UiGuideOverlay` 再設計、基盤整理
+- **Phase 2 (v0.3.0)**: 発表チャイム SE（Web Audio API）、スライド部分拡大・パン（Zoom `Z`）、レーザー色切替、隣接ページ先読み、Q&A 用 QR コードオーバーレイ、極薄プログレスバー
+- **Phase 3 (v0.4.0)**: Tauri v2 デスクトップ `.typ` 直接コンパイル ＆ Live Compile Guard、単一 `.typ` ファイル原稿対応
+- **Phase 4 (v0.4.x〜v0.5.0+)**: 公式サンプル刷新、原稿文字数からの目標時間見積もり、ペイン分割比率調整、ローカル LAN スマホリモコン等
 
 ---
 

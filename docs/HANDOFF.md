@@ -97,6 +97,8 @@ npm run build; if ($LASTEXITCODE -eq 0) { npx playwright test --workers=1 }
 
 ## 4. 次期作業予定・設計メモ ＆ 追加機能提案
 
+> **Note**: 本セクションの各項目を優先順位・フェーズ構成（Phase 1〜4）へ整理した実装ロードマップ、および Phase 3 検討項目の詳細比較メモは [**docs/ROADMAP.md**](./ROADMAP.md) に統合しています。
+
 新しい会話でタスクとして個別に着手予定の項目と、実装に向けた設計メモです。
 
 ### 予定タスク一覧

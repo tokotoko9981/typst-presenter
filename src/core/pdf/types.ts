@@ -23,10 +23,14 @@ export interface LoadedDeckMeta {
   suggestedCropMode: CropMode;
   outline: OutlineNode[];
   extractedNotes: Record<number, string>; // 1-based page -> note markdown/text
+  extractedSlideTargets?: Record<number, number>; // 1-based page -> target seconds
   extractedPdfpcConfig?: {
     durationMinutes?: number;
     lastMinutes?: number;
     noteFontSize?: number;
+    endTimeHHMM?: string;
+    qrUrl?: string;
+    qrLabel?: string;
   };
 }
 

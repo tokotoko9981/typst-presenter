@@ -1,3 +1,5 @@
+import { buildLogicalSlideGroups } from '../notes/logicalSlides.ts';
+
 export interface SlideTimingSummary {
   page: number;
   actualSeconds: number;
@@ -5,6 +7,11 @@ export interface SlideTimingSummary {
   deltaSeconds?: number; // actual - target
   visits: number;
   status: 'no-target' | 'ahead' | 'on-track' | 'overtime';
+}
+
+export interface LogicalSlideTimingSummary extends SlideTimingSummary {
+  label: string;
+  pages: number[];
 }
 
 export interface RehearsalReport {
@@ -288,4 +295,64 @@ export function exportRehearsalReportCsv(report: RehearsalReport): string {
     ].join(','),
   );
   return [header, ...rows].join('\n');
+}
+
+export function aggregateReportByLogicalSlide(
+  report: RehearsalReport,
+  pageLabels: string[] | null | undefined,
+): RehearsalReport & { logicalSlides: LogicalSlideTimingSummary[] } {
+  const byPage = new Map<number, SlideTimingSummary>();
+  for (const slide of report.slides) {
+    byPage.set(slide.page, slide);
+  }
+
+  const groups = buildLogicalSlideGroups(pageLabels, report.totalPages);
+  let totalTargetSeconds = 0;
+
+  const logicalSlides: LogicalSlideTimingSummary[] = groups.map((group) => {
+    let actualSeconds = 0;
+    let visits = 0;
+    let targetSeconds: number | undefined;
+
+    for (const p of group.pages) {
+      const entry = byPage.get(p);
+      if (!entry) continue;
+      actualSeconds += entry.actualSeconds;
+      visits += entry.visits;
+      if (targetSeconds === undefined && entry.targetSeconds !== undefined && entry.targetSeconds > 0) {
+        targetSeconds = entry.targetSeconds;
+      }
+    }
+
+    let status: SlideTimingSummary['status'] = 'no-target';
+    let deltaSeconds: number | undefined;
+    if (targetSeconds !== undefined) {
+      deltaSeconds = actualSeconds - targetSeconds;
+      totalTargetSeconds += targetSeconds;
+      if (actualSeconds > targetSeconds) {
+        status = 'overtime';
+      } else if (actualSeconds < targetSeconds * 0.8) {
+        status = 'ahead';
+      } else {
+        status = 'on-track';
+      }
+    }
+
+    return {
+      label: group.label,
+      pages: group.pages,
+      page: group.primaryPage,
+      actualSeconds,
+      ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+      ...(deltaSeconds !== undefined ? { deltaSeconds } : {}),
+      visits,
+      status,
+    };
+  });
+
+  return {
+    ...report,
+    totalTargetSeconds,
+    logicalSlides,
+  };
 }

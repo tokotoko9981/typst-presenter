@@ -5,9 +5,20 @@ export interface FileLike {
   text(): Promise<string>;
 }
 
+export interface WritableFileStreamLike {
+  write(data: string | Blob | ArrayBuffer | ArrayBufferView): Promise<void>;
+  close(): Promise<void>;
+}
+
 export interface FileHandleLike {
   readonly name: string;
   getFile(): Promise<FileLike>;
+}
+
+export interface WritableFileHandleLike extends FileHandleLike {
+  createWritable?: () => Promise<WritableFileStreamLike>;
+  queryPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<'granted' | 'denied' | 'prompt'>;
+  requestPermission?: (descriptor?: { mode?: 'read' | 'readwrite' }) => Promise<'granted' | 'denied' | 'prompt'>;
 }
 
 export interface WatchStatus {
@@ -81,8 +92,8 @@ export async function pickPdfFileHandle(): Promise<FileHandleLike | null> {
   ]);
 }
 
-export async function pickNotesFileHandle(): Promise<FileHandleLike | null> {
-  return pickSingleFileHandle([
+export async function pickNotesFileHandle(): Promise<WritableFileHandleLike | null> {
+  return (await pickSingleFileHandle([
     {
       description: 'Speaker Notes (.md, .markdown, .json, .pdfpc)',
       accept: {
@@ -90,7 +101,7 @@ export async function pickNotesFileHandle(): Promise<FileHandleLike | null> {
         'application/json': ['.json', '.pdfpc'],
       },
     },
-  ]);
+  ])) as WritableFileHandleLike | null;
 }
 
 interface WatchSlotState {

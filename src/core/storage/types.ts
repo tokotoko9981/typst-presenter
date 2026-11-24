@@ -1,9 +1,12 @@
 import type { CropMode } from '../pdf/types.ts';
 
+export type SlideNoteSource = 'embedded' | 'sidecar' | 'manual';
+
 export interface SlideNoteEntry {
   markdown: string;
   targetSeconds?: number;
   updatedAt: number;
+  source?: SlideNoteSource;
 }
 
 export interface DeckNotesBundle {
@@ -47,4 +50,5 @@ export interface PresenterPrefs {
   chimeEnabled?: boolean;
   chimeVolume?: number;
   audienceProgressBar?: boolean;
+  shareNotesByPageLabel?: boolean;
 }

@@ -111,24 +111,21 @@ Web 版・PWA・Tauri デスクトップ版の全ユーザーに価値が届く�
 
 ---
 
-### Phase 3（v0.4.0）: Typst 単一ファイル原稿 ＆ Tauri v2 直接ライブコンパイル
+### Phase 3（v0.4.0）: Typst 単一ファイル原稿 ＆ Tauri v2 直接ライブコンパイル【完了】
 
-「Typst Presenter」の最大の差別化ポイントである **`.typ` ソースを直接開いて安全にライブ発表できるワークフロー** を構築します。
+「Typst Presenter」の最大の差別化ポイントである **`.typ` ソースを直接開いて安全にライブ発表できるワークフロー** を構築しました。
 
-1. **【確定】Tauri v2 直接 `.typ` コンパイル ＆ Live Compile Guard（HANDOFF #1）**
-   - `src-tauri/src/commands/` サブモジュールを新設し、`tauri-plugin-dialog` および `notify`（またはデバウンス監視）を導入。
-   - 実装予定コマンド: `check_typst_cli`, `pick_typst_file`, `start_typst_watch`, `stop_typst_watch`, `list_typst_fonts`（`--input` / `--root` 任意指定に対応、Windows では `CREATE_NO_WINDOW` でコンソールウィンドウ点滅を防止）。
-   - `typst` CLI はシステム `PATH` から優先検出し、未検出時はインストール案内を表示（Sidecar 同梱は将来の拡張余地として保留）。
-   - **Live Compile Guard**: 一時出力先へコンパイルし、成功時のみ PDF バイト列をフロントへ通知してホットリロードする。構文エラー時は直前に成功していた PDF・現在ページ・ペン描線を維持し、発表者画面のステータスバッジ／展開ドロワーのみに行番号・エラー内容を表示（聴衆画面は一切崩さない）。
-2. **【Phase 3 着手前に方式決定】単一 `.typ` ファイル原稿対応（HANDOFF #2）**
-   - `extractors.ts` のメタデータ保持拡張（JSON 添付の `targetSeconds` 保持、添付 `.md` の YAML frontmatter 解析統合）および `hotReloadPdfBytes` のソース由来ノート同期設計を実施。
-   - 具体的な埋め込み・抽出方式は **付録 A** の 3 案から Phase 3 着手前に決定。
-3. **【Phase 3 着手前に採否決定】周辺機能候補 3 点**
-   - **付録 B**: 論理スライド番号（`pageLabels`）によるサブスライド間ノート共有
-   - **付録 C**: 編集ノートのローカル `.md` 直接上書き保存
-   - **付録 D**: Tauri CLI 引数起動（`typst-presenter slides.typ` / `deck.pdf`）
-
-- **完了条件**: Windows 実機（`typst 0.15.1`）で `.typ` 直接開く → 編集中に意図的構文エラー → Live Compile Guard で聴衆維持 → 修正保存で即時復帰の結合検証通過。
+1. **【完了】Tauri v2 直接 `.typ` コンパイル ＆ Live Compile Guard（HANDOFF #1）**
+   - `src-tauri/src/commands/`（`typst.rs`, `files.rs`, `window.rs`）を新設し、`tauri-plugin-dialog` および `notify`（250ms デバウンス監視）を導入。
+   - `check_typst_cli`, `pick_typst_file`, `start_typst_watch`, `stop_typst_watch`, `read_compiled_pdf`, `list_typst_fonts`, `set_close_guard`, `force_close_app` を実装（`CREATE_NO_WINDOW` ＆ `async fn` 適用）。
+   - **Live Compile Guard**: 一時出力先へコンパイルし、成功時のみ PDF バイト列をフロントへ通知してホットリロード。構文エラー時は直前の正常 PDF・現在ページ・ペン描線を維持し、[`TypstCompileDrawer.tsx`](../src/features/presenter/components/TypstCompileDrawer.tsx) のみに行列番号・エラー内容を表示。
+2. **【完了】単一 `.typ` ファイル原稿対応（付録 A：案 1 二段構え ＋ 由来管理ホットリロード）**
+   - [`typst/presenter-notes.typ`](../typst/presenter-notes.typ)（`#speaker-note` / `#presenter-config` / `#enable-presenter-notes`）で `#pdf.attach` JSON を自動埋め込みし、Tauri 直接コンパイル時は `typst query <pdfpc>` を補完抽出（[`typstPdfpcParser.ts`](../src/core/typst/typstPdfpcParser.ts)）。
+   - `extractors.ts` の JSON `targetSeconds` / 添付 `.md` YAML frontmatter 保持、および `mergeHotReloadNotesBundle` による `embedded` 自動追従・`manual`/`sidecar` 保護を実装。
+3. **【完了】周辺機能 3 点（付録 B〜D）**
+   - **付録 B**: [`logicalSlides.ts`](../src/core/notes/logicalSlides.ts) による `pageLabels` サブスライド間ノート共有と [`RehearsalStatsModal.tsx`](../src/features/presenter/RehearsalStatsModal.tsx) の論理合算表示。
+   - **付録 C**: [`NotesFileSaver.ts`](../src/core/files/NotesFileSaver.ts) によるローカル `.md` 直接上書き保存（Marp/Slidev ソース保護ガード付き）。
+   - **付録 D**: `get_launch_file` による Tauri CLI 引数起動（`typst-presenter slides.typ` / `deck.pdf`）。
 
 ---
 

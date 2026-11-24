@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 現状サマリー（v0.3.0 / Phase 1・2 完了時点）
+## 1. 現状サマリー（v0.4.0 / Phase 1〜3 完了時点）
 
 - **リポジトリ URL**: <https://github.com/tokotoko9981/typst-presenter>
 - **ローカル作業フォルダ**: `C:\Users\tokot\Desktop\program\typst-presenter`（ブランチ `main`、ローカルコミットは未プッシュ）
@@ -12,17 +12,23 @@
   - **Phase 1（`f14dd60`）**: `BlackoutScreenIcon` / `WhiteoutScreenIcon` 刷新、リモコン互換ショートカット（`.` / `ArrowUp` / `ArrowDown` / `Home` / `End` / `Esc`）、聴衆画面全画面ピル非表示・カーソル自動隠蔽、`UiGuideOverlay.tsx` パターン C（12 ブロック集約）再設計、未使用 `zustand` 削除
   - **Tauri v2 Windows 実機修正（`b5c9617`）**: 聴衆ウィンドウ起動時の WebView2 デッドロック回避（`async fn` 化）、黒背景初期化、本体ウィンドウ終了時の聴衆自動破棄、`is_audience_fullscreen` 追加
   - **Phase 2（`2ee9502` ＋ ズーム鮮明化修正）**: 学会形式チャイム SE（1/2/3 鈴、Web Audio API、デフォルト OFF）、スライド拡大・パン（`Z`＋ホイール＋ドラッグ、表示領域 1:1 ネイティブ DPR 詳細レイヤー＋HiDPI オーバーレイ）、レーザー色切替（赤/緑/青）、隣接ページ先読みキャッシュ（LRU 上限 4）、Q&A 用 QR コード即時オーバーレイ（`uqr@0.1.3`）、聴衆画面極薄 2px プログレスバー（デフォルト OFF）
+  - **Phase 3（v0.4.0）**:
+    - **付録 A（案 1 二段構え ＋ 由来管理ホットリロード）**: [`typst/presenter-notes.typ`](../typst/presenter-notes.typ)（`#speaker-note` / `#presenter-config` / `#enable-presenter-notes` で `#pdf.attach` JSON 自動埋め込み）＋ `typst query <pdfpc>` 補完抽出（[`src/core/typst/typstPdfpcParser.ts`](../src/core/typst/typstPdfpcParser.ts)）、`extractors.ts` の JSON `targetSeconds` / 添付 `.md` YAML frontmatter 保持、および `source: 'embedded' | 'sidecar' | 'manual'` による再コンパイル時自動追従（`mergeHotReloadNotesBundle`）
+    - **付録 B（論理スライドノート共有）**: [`src/core/notes/logicalSlides.ts`](../src/core/notes/logicalSlides.ts) による `pageLabels` 重複ページのノート共有（`logical-slide-toggle` / 継承元バッジ）および [`RehearsalStatsModal.tsx`](../src/features/presenter/RehearsalStatsModal.tsx) の論理スライド合算表示
+    - **付録 C（ローカル `.md` 直接上書き保存）**: [`src/core/files/NotesFileSaver.ts`](../src/core/files/NotesFileSaver.ts) による File System Access API / Tauri FS 直接上書き（Marp / Slidev 原稿保護ガード付き）
+    - **付録 D ＆ Tauri v2 直接コンパイル・Live Compile Guard**: `src-tauri/src/commands/`（`typst.rs`, `files.rs`, `window.rs`）による CLI 引数起動、`typst` 監視・一時出力ビルド、`CREATE_NO_WINDOW` 適用、構文エラー時の直前 PDF/ページ/描線維持＋ [`TypstCompileDrawer.tsx`](../src/features/presenter/components/TypstCompileDrawer.tsx) 診断表示、および Tauri `CloseRequested` Guard 連動
 - **対応ランタイム**:
   - **Web ブラウザ / オフライン PWA**: Vite + React 19 + Tailwind CSS v4 + `vite-plugin-pwa`
-  - **デスクトップアプリ（Tauri v2）**: `src-tauri/`（Rust `1.100.0` / `tauri` v2 / Visual Studio 2022 MSVC で実機起動・2 画面表示確認済み）
+  - **デスクトップアプリ（Tauri v2）**: `src-tauri/`（Rust `1.100.0` / `tauri` v2 / `tauri-plugin-dialog` / `notify`）
   - **ローカル Typst CLI**: `typst 0.15.1 (9dfd3a08)` 導入済み
 
-### 直近の検証済みベースライン（ズーム鮮明化修正後）
+### 直近の検証済みベースライン（Phase 3 完了時点）
 - **型チェック (`npm run typecheck`)**: `tsc --noEmit` エラー 0 件
-- **ユニットテスト (`npm test`)**: **13 ファイル / 115 件すべてパス**
+- **ユニットテスト (`npm test`)**: **15 ファイル / 124 件すべてパス**（`typst 0.15.1` 実コンパイル往復検証含む）
+- **Rust ユニットテスト (`cargo test --manifest-path src-tauri/Cargo.toml`)**: **3 件すべてパス**
 - **本番ビルド (`npm run build`)**: `dist/` 生成成功
-- **Playwright E2E (`npx playwright test --workers=1`)**: **9 ファイル（`*.spec.ts`） / 108 件すべてパス**
-- **視覚検証**: 1280×800 / 1024×680（JP/EN × Dark/Light）レイアウト（`headerHeight: 77px`・横オーバーフローなし・`AudienceView` 純黒背景 `#000000`）および 3.76x 拡大時の 1:1 DPR 再描画の鮮明度を確認済み
+- **Playwright E2E (`npx playwright test --workers=1`)**: **10 ファイル（`*.spec.ts`） / 112 件すべてパス**
+- **視覚検証**: 1280×800（JP Dark / Tauri `TypstCompileDrawer`）および 1024×680（EN Light）で `headerHeight: 77px`・横オーバーフローなしを確認済み
 
 ### 開発・テスト手順（Windows PowerShell 5.1）
 

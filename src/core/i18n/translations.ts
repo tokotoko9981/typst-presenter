@@ -282,6 +282,36 @@ export interface TranslationDict {
   msgAudienceOpenFailed: string;
   msgStoredDeckMissing: string;
   msgEmptyPdf: string;
+
+  // Phase 3: Typst Live Compile, Logical Slides, Direct MD Save & Close Guard
+  openTypstBtn: string;
+  typstDrawerTitle: string;
+  typstCliStatusLabel: string;
+  typstCliRecheck: string;
+  typstCliMissingGuide: string;
+  typstWatchedFileLabel: string;
+  typstNoFileSelected: string;
+  typstRecompileBtn: string;
+  typstStopWatchBtn: string;
+  typstDiagnosticsTitle: string;
+  typstLiveGuardNotice: string;
+  typstNoDiagnostics: string;
+  typstOptionsTitle: string;
+  typstFontsTitle: string;
+  typstLoadFontsBtn: string;
+  typstStatusOk: string;
+  typstStatusError: string;
+  typstStatusCompiling: string;
+  logicalShareLabel: string;
+  logicalInheritedFrom: string;
+  overwriteNotesMdItem: string;
+  msgOverwriteMdSuccess: string;
+  msgOverwriteMarpProtected: string;
+  closeGuardModalTitle: string;
+  closeGuardModalDesc: string;
+  closeGuardKeepPresenting: string;
+  closeGuardForceExit: string;
+  formatBulletTypstSingle: string;
 }
 
 export const TRANSLATIONS: Record<Locale, TranslationDict> = {
@@ -556,6 +586,40 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     msgAudienceOpenFailed: 'Error: Failed to open Audience display window.',
     msgStoredDeckMissing: 'Error: Stored deck is no longer available.',
     msgEmptyPdf: 'Error: Empty or invalid PDF file (0 bytes).',
+
+    openTypstBtn: 'Open .typ',
+    typstDrawerTitle: 'Typst Live Compile & Diagnostics',
+    typstCliStatusLabel: 'Typst CLI',
+    typstCliRecheck: 'Re-check',
+    typstCliMissingGuide:
+      'typst CLI was not found on PATH. Install Typst using one of the commands below:',
+    typstWatchedFileLabel: 'Watched .typ File',
+    typstNoFileSelected: 'No .typ file selected',
+    typstRecompileBtn: 'Recompile',
+    typstStopWatchBtn: 'Stop Watch',
+    typstDiagnosticsTitle: 'Compiler Diagnostics',
+    typstLiveGuardNotice:
+      'Live Compile Guard active: keeping the last valid PDF, page, and ink on screen.',
+    typstNoDiagnostics: 'No compiler errors or warnings.',
+    typstOptionsTitle: 'Compile Options',
+    typstFontsTitle: 'Available Typst Fonts',
+    typstLoadFontsBtn: 'Load Fonts',
+    typstStatusOk: 'Typst OK',
+    typstStatusError: 'Typst Error',
+    typstStatusCompiling: 'Compiling…',
+    logicalShareLabel: 'Share subslide notes',
+    logicalInheritedFrom: 'Inherited from p.',
+    overwriteNotesMdItem: 'Overwrite linked .md',
+    msgOverwriteMdSuccess: 'Overwrote linked Markdown notes:',
+    msgOverwriteMarpProtected:
+      'Direct overwrite is blocked for Marp/Slidev source files to protect slide content. Export as a separate file instead.',
+    closeGuardModalTitle: 'Presentation Guard Active',
+    closeGuardModalDesc:
+      'Reload/Close Guard is enabled to prevent accidental exit during your talk. Do you want to close the app anyway?',
+    closeGuardKeepPresenting: 'Keep Presenting',
+    closeGuardForceExit: 'Disable Guard & Exit',
+    formatBulletTypstSingle:
+      'Single .typ file: use typst/presenter-notes.typ (#speaker-note / #presenter-config) or Polylux/Touying <pdfpc>.',
   },
 
   ja: {
@@ -829,5 +893,39 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     msgAudienceOpenFailed: 'エラー: 聴衆用ウィンドウを開けませんでした。',
     msgStoredDeckMissing: 'エラー: 保存されていた資料を読み込めませんでした。',
     msgEmptyPdf: 'エラー: 空の PDF ファイル (0 bytes) です。',
+
+    openTypstBtn: '.typ を開く',
+    typstDrawerTitle: 'Typst ライブコンパイル & 診断',
+    typstCliStatusLabel: 'Typst CLI 状態',
+    typstCliRecheck: '再確認',
+    typstCliMissingGuide:
+      'PATH 上に typst CLI が見つかりません。以下のいずれかでインストールしてください:',
+    typstWatchedFileLabel: '監視中の .typ ファイル',
+    typstNoFileSelected: '.typ ファイル未選択',
+    typstRecompileBtn: '再コンパイル',
+    typstStopWatchBtn: '監視停止',
+    typstDiagnosticsTitle: 'コンパイル診断',
+    typstLiveGuardNotice:
+      'Live Compile Guard 作動中: 聴衆画面・現在ページ・描線は直前の正常状態のまま維持されています。',
+    typstNoDiagnostics: 'コンパイルエラー・警告はありません。',
+    typstOptionsTitle: 'コンパイルオプション',
+    typstFontsTitle: '利用可能な Typst フォント',
+    typstLoadFontsBtn: 'フォント一覧を取得',
+    typstStatusOk: 'Typst 正常',
+    typstStatusError: 'Typst エラー',
+    typstStatusCompiling: 'コンパイル中…',
+    logicalShareLabel: 'サブスライド間でノート共有',
+    logicalInheritedFrom: '継承元: p.',
+    overwriteNotesMdItem: '元の .md へ直接上書き',
+    msgOverwriteMdSuccess: '元の Markdown ノートを上書き保存しました:',
+    msgOverwriteMarpProtected:
+      'Marp/Slidev 原稿の本文破壊を防ぐため、元の .md への直接上書きはブロックされました。別ファイルとして書き出してください。',
+    closeGuardModalTitle: '誤終了ガードが有効です',
+    closeGuardModalDesc:
+      '発表中の誤操作防止ガードが ON になっています。このままアプリを終了しますか？',
+    closeGuardKeepPresenting: '発表を続ける',
+    closeGuardForceExit: 'ガードを解除して終了',
+    formatBulletTypstSingle:
+      '単一 .typ 原稿: typst/presenter-notes.typ（#speaker-note / #presenter-config）または Polylux/Touying の <pdfpc> に対応。',
   },
 };

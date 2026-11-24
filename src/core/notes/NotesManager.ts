@@ -10,6 +10,7 @@ export interface ParsedSidecarResult {
   endTimeHHMM?: string;
   qrUrl?: string;
   qrLabel?: string;
+  isMarpOrSlidev?: boolean;
 }
 
 export interface ParseMarkdownSidecarOptions {
@@ -321,6 +322,7 @@ export function extractMarpOrSlidevNotesFromSlides(
         markdown: noteChunks.join('\n\n'),
         ...(targetSeconds !== undefined ? { targetSeconds } : {}),
         updatedAt: now,
+        source: 'sidecar',
       };
     }
   });
@@ -464,9 +466,10 @@ export function parseMarkdownSidecar(
           ? { targetSeconds: extracted.targetSeconds }
           : {}),
         updatedAt: now,
+        source: 'sidecar',
       };
     }
-    return { slides, ...frontmatterMeta };
+    return { slides, ...frontmatterMeta, isMarpOrSlidev: false };
   }
 
   const rawParts = splitBodyByHr(body);
@@ -480,6 +483,7 @@ export function parseMarkdownSidecar(
     return {
       slides: extractMarpOrSlidevNotesFromSlides(normalizedParts),
       ...frontmatterMeta,
+      isMarpOrSlidev: true,
     };
   }
 
@@ -492,11 +496,12 @@ export function parseMarkdownSidecar(
           ? { targetSeconds: extracted.targetSeconds }
           : {}),
         updatedAt: now,
+        source: 'sidecar',
       };
     }
   });
 
-  return { slides, ...frontmatterMeta };
+  return { slides, ...frontmatterMeta, isMarpOrSlidev: false };
 }
 
 export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedSidecarResult {
@@ -561,6 +566,7 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
           slides[idx + 1] = {
             markdown: noteText.trim(),
             updatedAt: now,
+            source: 'sidecar',
           };
         }
       }
@@ -621,7 +627,7 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
     if (pageNum < 1) continue;
 
     if (typeof val === 'string') {
-      slides[pageNum] = { markdown: val.trim(), updatedAt: now };
+      slides[pageNum] = { markdown: val.trim(), updatedAt: now, source: 'sidecar' };
     } else if (val && typeof val === 'object') {
       const rec = val as Record<string, unknown>;
       const md =
@@ -642,6 +648,7 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
         markdown: md.trim(),
         ...(targetSeconds !== undefined ? { targetSeconds } : {}),
         updatedAt: typeof rec.updatedAt === 'number' ? rec.updatedAt : now,
+        source: 'sidecar',
       };
     }
   }
@@ -673,6 +680,49 @@ export function parseSidecarFileContent(
   return parseMarkdownSidecar(text, options);
 }
 
+function buildEmbeddedSlideEntries(
+  extractedNotes?: Record<number, string>,
+  extractedTargets?: Record<number, number>,
+  now: number = Date.now(),
+): Record<number, SlideNoteEntry> {
+  const slides: Record<number, SlideNoteEntry> = {};
+  const pageSet = new Set<number>();
+
+  if (extractedNotes) {
+    for (const pageStr of Object.keys(extractedNotes)) {
+      const p = Number.parseInt(pageStr, 10);
+      if (Number.isInteger(p) && p >= 1) pageSet.add(p);
+    }
+  }
+  if (extractedTargets) {
+    for (const pageStr of Object.keys(extractedTargets)) {
+      const p = Number.parseInt(pageStr, 10);
+      if (Number.isInteger(p) && p >= 1) pageSet.add(p);
+    }
+  }
+
+  for (const pageNum of pageSet) {
+    const rawNote = extractedNotes?.[pageNum] ?? '';
+    const extracted = extractTargetDirective(rawNote);
+    const explicitTarget = extractedTargets?.[pageNum];
+    const targetSeconds =
+      typeof explicitTarget === 'number' && Number.isFinite(explicitTarget) && explicitTarget > 0
+        ? Math.round(explicitTarget)
+        : extracted.targetSeconds;
+
+    if (extracted.markdown.trim().length > 0 || targetSeconds !== undefined) {
+      slides[pageNum] = {
+        markdown: extracted.markdown,
+        ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+        updatedAt: now,
+        source: 'embedded',
+      };
+    }
+  }
+
+  return slides;
+}
+
 export function createEmptyNotesBundle(
   deckId: string,
   fileName: string,
@@ -681,25 +731,13 @@ export function createEmptyNotesBundle(
     durationMinutes?: number;
     lastMinutes?: number;
     noteFontSize?: number;
+    endTimeHHMM?: string;
+    qrUrl?: string;
+    qrLabel?: string;
   },
+  extractedTargets?: Record<number, number>,
 ): DeckNotesBundle {
-  const now = Date.now();
-  const slides: Record<number, SlideNoteEntry> = {};
-  if (extractedNotes) {
-    for (const [pageStr, noteText] of Object.entries(extractedNotes)) {
-      const pageNum = Number.parseInt(pageStr, 10);
-      if (Number.isInteger(pageNum) && pageNum >= 1 && noteText.trim().length > 0) {
-        const extracted = extractTargetDirective(noteText);
-        slides[pageNum] = {
-          markdown: extracted.markdown,
-          ...(extracted.targetSeconds !== undefined
-            ? { targetSeconds: extracted.targetSeconds }
-            : {}),
-          updatedAt: now,
-        };
-      }
-    }
-  }
+  const slides = buildEmbeddedSlideEntries(extractedNotes, extractedTargets, Date.now());
 
   return {
     version: 1,
@@ -707,10 +745,109 @@ export function createEmptyNotesBundle(
     fileName,
     globalTargetSeconds: (pdfpcConfig?.durationMinutes ?? DEFAULT_PREFS.countdownMinutes) * 60,
     lastMinutesWarning: pdfpcConfig?.lastMinutes ?? DEFAULT_PREFS.lastMinutesWarning,
+    ...(pdfpcConfig?.endTimeHHMM ? { endTimeHHMM: pdfpcConfig.endTimeHHMM } : {}),
+    ...(pdfpcConfig?.qrUrl ? { qrUrl: pdfpcConfig.qrUrl } : {}),
+    ...(pdfpcConfig?.qrLabel ? { qrLabel: pdfpcConfig.qrLabel } : {}),
     noteFontSizePx: clampNoteFontSize(
       pdfpcConfig?.noteFontSize ?? DEFAULT_PREFS.noteFontSizePx,
     ),
     slides,
+  };
+}
+
+export interface MergeHotReloadNotesOptions {
+  deckId: string;
+  fileName: string;
+  numPages: number;
+  extractedNotes?: Record<number, string>;
+  extractedTargets?: Record<number, number>;
+  extractedPdfpcConfig?: {
+    durationMinutes?: number;
+    lastMinutes?: number;
+    noteFontSize?: number;
+    endTimeHHMM?: string;
+    qrUrl?: string;
+    qrLabel?: string;
+  };
+}
+
+export function mergeHotReloadNotesBundle(
+  prevBundle: DeckNotesBundle | null,
+  options: MergeHotReloadNotesOptions,
+): DeckNotesBundle {
+  const now = Date.now();
+  const nextEmbeddedSlides = buildEmbeddedSlideEntries(
+    options.extractedNotes,
+    options.extractedTargets,
+    now,
+  );
+
+  if (!prevBundle) {
+    return createEmptyNotesBundle(
+      options.deckId,
+      options.fileName,
+      options.extractedNotes,
+      options.extractedPdfpcConfig,
+      options.extractedTargets,
+    );
+  }
+
+  const mergedSlides: Record<number, SlideNoteEntry> = {};
+
+  for (const [pageStr, entry] of Object.entries(prevBundle.slides)) {
+    const pageNum = Number.parseInt(pageStr, 10);
+    if (!Number.isInteger(pageNum) || pageNum < 1) continue;
+    const isProtected = entry.source === 'manual' || entry.source === 'sidecar';
+    if (isProtected) {
+      mergedSlides[pageNum] = entry;
+    }
+  }
+
+  for (const [pageStr, embeddedEntry] of Object.entries(nextEmbeddedSlides)) {
+    const pageNum = Number.parseInt(pageStr, 10);
+    if (!Number.isInteger(pageNum) || pageNum < 1) continue;
+    if (!mergedSlides[pageNum]) {
+      mergedSlides[pageNum] = embeddedEntry;
+    }
+  }
+
+  const hasSidecarSlides = Object.values(prevBundle.slides).some(
+    (entry) => entry.source === 'sidecar',
+  );
+  const cfg = options.extractedPdfpcConfig;
+
+  const globalTargetSeconds =
+    !hasSidecarSlides && cfg?.durationMinutes !== undefined
+      ? cfg.durationMinutes * 60
+      : prevBundle.globalTargetSeconds;
+  const lastMinutesWarning =
+    !hasSidecarSlides && cfg?.lastMinutes !== undefined
+      ? cfg.lastMinutes
+      : prevBundle.lastMinutesWarning;
+  const noteFontSizePx =
+    !hasSidecarSlides && cfg?.noteFontSize !== undefined
+      ? clampNoteFontSize(cfg.noteFontSize)
+      : prevBundle.noteFontSizePx;
+  const endTimeHHMM =
+    !hasSidecarSlides && cfg?.endTimeHHMM !== undefined
+      ? cfg.endTimeHHMM
+      : prevBundle.endTimeHHMM;
+  const qrUrl =
+    !hasSidecarSlides && cfg?.qrUrl !== undefined ? cfg.qrUrl : prevBundle.qrUrl;
+  const qrLabel =
+    !hasSidecarSlides && cfg?.qrLabel !== undefined ? cfg.qrLabel : prevBundle.qrLabel;
+
+  return {
+    ...prevBundle,
+    deckId: options.deckId,
+    fileName: options.fileName,
+    globalTargetSeconds,
+    lastMinutesWarning,
+    noteFontSizePx,
+    ...(endTimeHHMM !== undefined ? { endTimeHHMM } : {}),
+    ...(qrUrl !== undefined ? { qrUrl } : {}),
+    ...(qrLabel !== undefined ? { qrLabel } : {}),
+    slides: mergedSlides,
   };
 }
 

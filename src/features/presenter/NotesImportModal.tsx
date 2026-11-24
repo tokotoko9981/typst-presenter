@@ -189,6 +189,7 @@ export function NotesImportModal({
               <li>• {t.formatBulletExplicit}</li>
               <li>• {t.formatBulletMarpSlidev}</li>
               <li>• {t.formatBulletPdfpc}</li>
+              <li>• {t.formatBulletTypstSingle}</li>
               <li>• {t.formatBulletPairDrop}</li>
             </ul>
 

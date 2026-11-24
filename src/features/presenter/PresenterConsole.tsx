@@ -14,6 +14,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileCode2,
   Focus,
   FolderOpen,
   History,
@@ -29,6 +30,7 @@ import {
   QrCode,
   Radio,
   RefreshCw,
+  Save,
   Shield,
   ShieldCheck,
   Snowflake,
@@ -46,9 +48,16 @@ import { clampChimeVolume } from '../../core/audio/ChimeEngine.ts';
 import {
   FileWatchService,
   isFileSystemAccessSupported,
+  pickNotesFileHandle,
   pickPdfFileHandle,
 } from '../../core/files/FileWatchService.ts';
 import type { WatchStatus } from '../../core/files/FileWatchService.ts';
+import {
+  detectNotesSourceFormat,
+  evaluateDirectOverwrite,
+  overwriteLinkedMarkdown,
+  type LinkedNotesSource,
+} from '../../core/files/NotesFileSaver.ts';
 import { useI18n } from '../../core/i18n/I18nContext.tsx';
 import { useTheme } from '../../core/theme/ThemeContext.tsx';
 import {
@@ -56,19 +65,33 @@ import {
   exportNotesToJson,
   exportNotesToMarkdown,
   exportNotesToPdfpc,
+  mergeHotReloadNotesBundle,
   parseSidecarFileContent,
 } from '../../core/notes/NotesManager.ts';
+import { hasRepeatedPageLabels, resolveNoteForPage } from '../../core/notes/logicalSlides.ts';
 import type { DeckNotesBundle } from '../../core/notes/types.ts';
 import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
 import type { CropMode, LoadedDeckMeta, OutlineNode } from '../../core/pdf/types.ts';
 import { resolveSplitCropRegions } from '../../core/pdf/viewportMath.ts';
 import {
+  forceCloseApp,
+  getLaunchFile,
   isTauriRuntime,
   launchAudienceDisplay,
   listAvailableMonitors,
+  onCloseGuardBlocked,
+  pickNotesFilePath,
+  readLocalBinaryFile,
+  readLocalTextFile,
   selectDefaultAudienceMonitor,
+  setCloseGuard,
   supportsWebScreenDetails,
+  writeLocalTextFile,
 } from '../../core/platform/DesktopBridge.ts';
+import {
+  mergeEmbeddedWithTypstQuery,
+  type TypstPdfpcQueryResult,
+} from '../../core/typst/typstPdfpcParser.ts';
 import type { MonitorDescriptor } from '../../core/platform/types.ts';
 import {
   clampNoteFontSize,
@@ -104,11 +127,13 @@ import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
 import { UiGuideOverlay } from './UiGuideOverlay.tsx';
 import { BlackoutScreenIcon, WhiteoutScreenIcon } from './components/CurtainIcons.tsx';
 import { QrOverlayModal } from './components/QrOverlayModal.tsx';
+import { TypstCompileDrawer } from './components/TypstCompileDrawer.tsx';
 import { useChimeAlerts } from './hooks/useChimeAlerts.ts';
 import {
   usePresenterShortcuts,
   type PresenterModalKind,
 } from './hooks/usePresenterShortcuts.ts';
+import { useTypstLiveCompile } from './hooks/useTypstLiveCompile.ts';
 
 function getOrCreateSessionId(): string {
   try {
@@ -254,8 +279,23 @@ export function PresenterConsole() {
   const [noteFontSizePx, setNoteFontSizePx] = useState<number>(DEFAULT_PREFS.noteFontSizePx);
   const [isEditingNotes, setIsEditingNotes] = useState<boolean>(false);
   const [draftNoteText, setDraftNoteText] = useState<string>('');
+  const [shareNotesByPageLabel, setShareNotesByPageLabel] = useState<boolean>(true);
+  const [linkedNotesSource, setLinkedNotesSource] = useState<LinkedNotesSource | null>(null);
+  const [closeGuardModalOpen, setCloseGuardModalOpen] = useState<boolean>(false);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const typstCompiledHandlerRef = useRef<
+    ((bytes: ArrayBuffer, fileName: string, queryResult: TypstPdfpcQueryResult | null) => Promise<void>) | null
+  >(null);
+
+  const typstLive = useTypstLiveCompile({
+    onCompiledPdf: async (bytes, fileName, queryResult) => {
+      if (typstCompiledHandlerRef.current) {
+        await typstCompiledHandlerRef.current(bytes, fileName, queryResult);
+      }
+    },
+  });
 
   // Timer state
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
@@ -524,6 +564,9 @@ export function PresenterConsole() {
   }, []);
 
   useEffect(() => {
+    if (tauriMode) {
+      void setCloseGuard(guardEnabled);
+    }
     if (!guardEnabled) return;
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
@@ -533,7 +576,28 @@ export function PresenterConsole() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [guardEnabled]);
+  }, [guardEnabled, tauriMode]);
+
+  useEffect(() => {
+    if (!tauriMode) return;
+    let active = true;
+    let unlisten: (() => void) | null = null;
+    void onCloseGuardBlocked(() => {
+      if (active) {
+        setCloseGuardModalOpen(true);
+      }
+    }).then((fn) => {
+      if (active) {
+        unlisten = fn;
+      } else {
+        fn();
+      }
+    });
+    return () => {
+      active = false;
+      unlisten?.();
+    };
+  }, [tauriMode]);
 
   // Restore preferences & most recent deck from IndexedDB on initial mount
   useEffect(() => {
@@ -555,6 +619,7 @@ export function PresenterConsole() {
       setChimeEnabled(Boolean(prefs.chimeEnabled));
       setChimeVolume(clampChimeVolume(prefs.chimeVolume ?? DEFAULT_PREFS.chimeVolume ?? 0.7));
       setAudienceProgressBar(Boolean(prefs.audienceProgressBar));
+      setShareNotesByPageLabel(prefs.shareNotesByPageLabel ?? true);
 
       const decks = await storageService.listDecks();
       if (!mounted) return;
@@ -592,6 +657,7 @@ export function PresenterConsole() {
             loadedMeta.fileName,
             loadedMeta.extractedNotes,
             loadedMeta.extractedPdfpcConfig,
+            loadedMeta.extractedSlideTargets,
           );
           await storageService.saveNotes(activeNotes);
         }
@@ -838,6 +904,7 @@ export function PresenterConsole() {
       bytes: ArrayBuffer,
       fileName: string,
       pairedSidecar?: { text: string; name: string },
+      extraTypstQuery?: TypstPdfpcQueryResult | null,
     ): Promise<void> => {
       setErrorMessage(null);
       setInfoMessage(null);
@@ -849,7 +916,21 @@ export function PresenterConsole() {
 
       try {
         const clonedForStorage = bytes.slice(0);
-        const loadedMeta = await engineRef.current!.loadDeck(bytes, fileName);
+        const rawMeta = await engineRef.current!.loadDeck(bytes, fileName);
+        const mergedEmbedded = mergeEmbeddedWithTypstQuery(
+          rawMeta.extractedNotes,
+          rawMeta.extractedSlideTargets,
+          rawMeta.extractedPdfpcConfig,
+          extraTypstQuery,
+        );
+        const loadedMeta: LoadedDeckMeta = {
+          ...rawMeta,
+          extractedNotes: mergedEmbedded.notes,
+          ...(mergedEmbedded.targets ? { extractedSlideTargets: mergedEmbedded.targets } : {}),
+          ...(mergedEmbedded.pdfpcConfig
+            ? { extractedPdfpcConfig: mergedEmbedded.pdfpcConfig }
+            : {}),
+        };
 
         notesBundleRef.current = null;
         setNotesBundle(null);
@@ -908,6 +989,7 @@ export function PresenterConsole() {
               loadedMeta.fileName,
               loadedMeta.extractedNotes,
               loadedMeta.extractedPdfpcConfig,
+              loadedMeta.extractedSlideTargets,
             );
             await storageService.saveNotes(bundle);
           }
@@ -940,6 +1022,9 @@ export function PresenterConsole() {
             const clampedFont = clampNoteFontSize(loadedMeta.extractedPdfpcConfig.noteFontSize);
             setNoteFontSizePx(clampedFont);
           }
+          if (loadedMeta.extractedPdfpcConfig?.endTimeHHMM) {
+            setEndTimeHHMM(loadedMeta.extractedPdfpcConfig.endTimeHHMM);
+          }
           setNotesBundle(bundle);
           if (bundle.qrUrl) {
             setQrOverlay({
@@ -968,14 +1053,32 @@ export function PresenterConsole() {
   );
 
   const hotReloadPdfBytes = useCallback(
-    async (bytes: ArrayBuffer, fileName: string): Promise<void> => {
+    async (
+      bytes: ArrayBuffer,
+      fileName: string,
+      extraTypstQuery?: TypstPdfpcQueryResult | null,
+    ): Promise<void> => {
       setErrorMessage(null);
       if (!bytes || bytes.byteLength === 0) {
         return;
       }
       try {
         const clonedForStorage = bytes.slice(0);
-        const loadedMeta = await engineRef.current!.loadDeck(bytes, fileName);
+        const rawMeta = await engineRef.current!.loadDeck(bytes, fileName);
+        const mergedEmbedded = mergeEmbeddedWithTypstQuery(
+          rawMeta.extractedNotes,
+          rawMeta.extractedSlideTargets,
+          rawMeta.extractedPdfpcConfig,
+          extraTypstQuery,
+        );
+        const loadedMeta: LoadedDeckMeta = {
+          ...rawMeta,
+          extractedNotes: mergedEmbedded.notes,
+          ...(mergedEmbedded.targets ? { extractedSlideTargets: mergedEmbedded.targets } : {}),
+          ...(mergedEmbedded.pdfpcConfig
+            ? { extractedPdfpcConfig: mergedEmbedded.pdfpcConfig }
+            : {}),
+        };
         const s = stateRef.current;
         const clampedPage = Math.max(
           1,
@@ -993,28 +1096,23 @@ export function PresenterConsole() {
           }
         }
 
-        const prevBundle = notesBundleRef.current;
-        let updatedNotes: DeckNotesBundle;
-        if (prevBundle) {
-          updatedNotes = {
-            ...prevBundle,
-            deckId: loadedMeta.deckId,
-            fileName: loadedMeta.fileName,
-          };
-          await storageService.saveNotes(updatedNotes);
-        } else {
-          const saved = await storageService.getNotes(loadedMeta.deckId);
-          if (saved) {
-            updatedNotes = saved;
-          } else {
-            updatedNotes = createEmptyNotesBundle(
-              loadedMeta.deckId,
-              loadedMeta.fileName,
-              loadedMeta.extractedNotes,
-              loadedMeta.extractedPdfpcConfig,
-            );
-            await storageService.saveNotes(updatedNotes);
-          }
+        const prevBundle = notesBundleRef.current ?? (await storageService.getNotes(loadedMeta.deckId));
+        const updatedNotes = mergeHotReloadNotesBundle(prevBundle, {
+          deckId: loadedMeta.deckId,
+          fileName: loadedMeta.fileName,
+          numPages: loadedMeta.numPages,
+          extractedNotes: loadedMeta.extractedNotes,
+          extractedTargets: loadedMeta.extractedSlideTargets,
+          extractedPdfpcConfig: loadedMeta.extractedPdfpcConfig,
+        });
+        await storageService.saveNotes(updatedNotes);
+
+        if (updatedNotes.qrUrl) {
+          setQrOverlay((prev) => ({
+            visible: prev.visible,
+            url: updatedNotes.qrUrl!,
+            label: updatedNotes.qrLabel ?? prev.label ?? '',
+          }));
         }
 
         await storageService.saveDeck({
@@ -1067,6 +1165,44 @@ export function PresenterConsole() {
     },
     [broadcastStateSnapshot, refreshRecentDecks],
   );
+
+  typstCompiledHandlerRef.current = async (bytes, fileName, queryResult) => {
+    if (!stateRef.current.meta) {
+      await ingestPdfBytes(bytes, fileName, undefined, queryResult);
+    } else {
+      await hotReloadPdfBytes(bytes, fileName, queryResult);
+    }
+  };
+
+  useEffect(() => {
+    if (!tauriMode) return;
+    let active = true;
+    void (async () => {
+      const req = await getLaunchFile();
+      if (!active || !req) return;
+      if (req.kind === 'typ') {
+        await typstLive.startWatchPath(req.path);
+      } else if (req.kind === 'pdf') {
+        try {
+          const bytes = await readLocalBinaryFile(req.path);
+          if (!active) return;
+          const fileName = req.path.split(/[\\/]/).pop() || 'deck.pdf';
+          await ingestPdfBytes(bytes, fileName);
+        } catch (err) {
+          if (!active) return;
+          setErrorMessage(
+            `Error: Failed to open launch PDF "${req.path}" (${
+              err instanceof Error ? err.message : String(err)
+            }).`,
+          );
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tauriMode]);
 
   const handleToggleWatchPdf = useCallback(async () => {
     const watcher = fileWatchRef.current;
@@ -1169,6 +1305,7 @@ export function PresenterConsole() {
             loadedMeta.fileName,
             loadedMeta.extractedNotes,
             loadedMeta.extractedPdfpcConfig,
+            loadedMeta.extractedSlideTargets,
           );
           await storageService.saveNotes(activeNotes);
         }
@@ -1286,6 +1423,8 @@ export function PresenterConsole() {
 
       try {
         const text = await file.text();
+        const parsed = parseSidecarFileContent(text, file.name);
+        setLinkedNotesSource(null);
         await applySidecarContent(
           text,
           file.name,
@@ -1293,6 +1432,7 @@ export function PresenterConsole() {
           meta?.fileName ?? 'deck.pdf',
           meta?.numPages,
         );
+        void parsed;
       } catch (err) {
         setErrorMessage(
           `Error: Failed to parse sidecar file "${file.name}" (${
@@ -1303,6 +1443,73 @@ export function PresenterConsole() {
     },
     [applySidecarContent, meta],
   );
+
+  const handleChooseNotesFile = useCallback(async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+
+    if (tauriMode) {
+      try {
+        const filePath = await pickNotesFilePath();
+        if (!filePath) return;
+        const text = await readLocalTextFile(filePath);
+        const fileName = filePath.split(/[\\/]/).pop() || 'notes.md';
+        const parsed = parseSidecarFileContent(text, fileName);
+        setLinkedNotesSource({
+          kind: 'tauri-path',
+          fileName,
+          filePath,
+          format: detectNotesSourceFormat(fileName),
+          isMarpOrSlidev: Boolean(parsed.isMarpOrSlidev),
+        });
+        await applySidecarContent(
+          text,
+          fileName,
+          meta?.deckId ?? 'unloaded-deck',
+          meta?.fileName ?? 'deck.pdf',
+          meta?.numPages,
+        );
+        return;
+      } catch (err) {
+        setErrorMessage(
+          `Error: Failed to open notes file (${err instanceof Error ? err.message : String(err)}).`,
+        );
+        return;
+      }
+    }
+
+    if (fsAccessSupported) {
+      try {
+        const handle = await pickNotesFileHandle();
+        if (!handle) return;
+        const file = await handle.getFile();
+        const text = await file.text();
+        const parsed = parseSidecarFileContent(text, handle.name);
+        setLinkedNotesSource({
+          kind: 'fs-handle',
+          fileName: handle.name,
+          handle,
+          format: detectNotesSourceFormat(handle.name),
+          isMarpOrSlidev: Boolean(parsed.isMarpOrSlidev),
+        });
+        await applySidecarContent(
+          text,
+          handle.name,
+          meta?.deckId ?? 'unloaded-deck',
+          meta?.fileName ?? 'deck.pdf',
+          meta?.numPages,
+        );
+        return;
+      } catch (err) {
+        setErrorMessage(
+          `Error: Failed to open notes file (${err instanceof Error ? err.message : String(err)}).`,
+        );
+        return;
+      }
+    }
+
+    sidecarFileInputRef.current?.click();
+  }, [applySidecarContent, fsAccessSupported, meta, tauriMode]);
 
   const handleSidecarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1590,8 +1797,24 @@ export function PresenterConsole() {
   }, [currentPage]);
 
   // Notes actions
-  const currentSlideEntry = notesBundle?.slides[currentPage];
+  const hasRepeatedLabels = useMemo(
+    () => hasRepeatedPageLabels(meta?.pageLabels, meta?.numPages ?? 0),
+    [meta?.pageLabels, meta?.numPages],
+  );
+  const resolvedNote = useMemo(
+    () =>
+      resolveNoteForPage(
+        notesBundle?.slides,
+        currentPage,
+        meta?.pageLabels,
+        meta?.numPages ?? 0,
+        shareNotesByPageLabel,
+      ),
+    [notesBundle?.slides, currentPage, meta?.pageLabels, meta?.numPages, shareNotesByPageLabel],
+  );
+  const currentSlideEntry = resolvedNote.entry;
   const currentSlideMarkdown = currentSlideEntry?.markdown ?? '';
+  const noteOwnerPage = resolvedNote.ownerPage;
 
   useEffect(() => {
     setSlideTargetInputText(
@@ -1609,24 +1832,31 @@ export function PresenterConsole() {
 
       const baseBundle =
         notesBundle ??
-        createEmptyNotesBundle(meta.deckId, meta.fileName, meta.extractedNotes);
-      const prevEntry = baseBundle.slides[currentPage];
+        createEmptyNotesBundle(
+          meta.deckId,
+          meta.fileName,
+          meta.extractedNotes,
+          meta.extractedPdfpcConfig,
+          meta.extractedSlideTargets,
+        );
+      const prevEntry = baseBundle.slides[noteOwnerPage] ?? currentSlideEntry;
       const nextEntry = {
         markdown: prevEntry?.markdown ?? '',
         ...(nextSeconds !== undefined ? { targetSeconds: nextSeconds } : {}),
         updatedAt: Date.now(),
+        source: 'manual' as const,
       };
       const updatedBundle: DeckNotesBundle = {
         ...baseBundle,
         slides: {
           ...baseBundle.slides,
-          [currentPage]: nextEntry,
+          [noteOwnerPage]: nextEntry,
         },
       };
       setNotesBundle(updatedBundle);
       await storageService.saveNotes(updatedBundle);
     },
-    [meta, notesBundle, currentPage],
+    [meta, notesBundle, noteOwnerPage, currentSlideEntry],
   );
 
   const openNotesEditor = useCallback(() => {
@@ -1641,24 +1871,31 @@ export function PresenterConsole() {
     }
     const baseBundle =
       notesBundle ??
-      createEmptyNotesBundle(meta.deckId, meta.fileName, meta.extractedNotes);
+      createEmptyNotesBundle(
+        meta.deckId,
+        meta.fileName,
+        meta.extractedNotes,
+        meta.extractedPdfpcConfig,
+        meta.extractedSlideTargets,
+      );
+    const existingTarget =
+      baseBundle.slides[noteOwnerPage]?.targetSeconds ?? currentSlideEntry?.targetSeconds;
     const updatedBundle: DeckNotesBundle = {
       ...baseBundle,
       slides: {
         ...baseBundle.slides,
-        [currentPage]: {
+        [noteOwnerPage]: {
           markdown: draftNoteText,
-          ...(baseBundle.slides[currentPage]?.targetSeconds !== undefined
-            ? { targetSeconds: baseBundle.slides[currentPage]!.targetSeconds }
-            : {}),
+          ...(existingTarget !== undefined ? { targetSeconds: existingTarget } : {}),
           updatedAt: Date.now(),
+          source: 'manual',
         },
       },
     };
     setNotesBundle(updatedBundle);
     setIsEditingNotes(false);
     await storageService.saveNotes(updatedBundle);
-  }, [meta, notesBundle, currentPage, draftNoteText]);
+  }, [meta, notesBundle, noteOwnerPage, currentSlideEntry?.targetSeconds, draftNoteText]);
 
   const handleAdjustFontSize = async (delta: number) => {
     const nextPx = clampNoteFontSize(noteFontSizePx + delta);
@@ -1683,6 +1920,7 @@ export function PresenterConsole() {
       meta.fileName,
       meta.extractedNotes,
       meta.extractedPdfpcConfig,
+      meta.extractedSlideTargets,
     );
     setNotesBundle(freshBundle);
     await storageService.saveNotes(freshBundle);
@@ -1712,6 +1950,35 @@ export function PresenterConsole() {
     }
   };
 
+  const handleOverwriteLinkedMarkdown = async () => {
+    setErrorMessage(null);
+    setInfoMessage(null);
+    const evalResult = evaluateDirectOverwrite(linkedNotesSource);
+    if (!evalResult.allowed) {
+      if (evalResult.reason === 'marp-slidev-protected') {
+        setErrorMessage(t.msgOverwriteMarpProtected);
+        return;
+      }
+      handleExportNotes('md');
+      return;
+    }
+
+    const bundle =
+      notesBundle ??
+      createEmptyNotesBundle(meta?.deckId ?? 'deck', meta?.fileName ?? 'deck.pdf');
+    const content = exportNotesToMarkdown(bundle, meta?.numPages ?? 1);
+    try {
+      await overwriteLinkedMarkdown(linkedNotesSource, content, writeLocalTextFile);
+      setInfoMessage(`${t.msgOverwriteMdSuccess} ${linkedNotesSource!.fileName}`);
+    } catch (err) {
+      setErrorMessage(
+        `Error: Failed to overwrite "${linkedNotesSource!.fileName}" (${
+          err instanceof Error ? err.message : String(err)
+        }).`,
+      );
+    }
+  };
+
   const handleApplyActualAsTargets = useCallback(
     async (targets: Record<number, number>) => {
       if (!meta) return;
@@ -1736,6 +2003,7 @@ export function PresenterConsole() {
           markdown: existing?.markdown ?? '',
           targetSeconds: Math.round(seconds),
           updatedAt: now,
+          source: 'manual',
         };
         appliedCount += 1;
       }
@@ -2023,6 +2291,50 @@ export function PresenterConsole() {
               <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <span>{t.openPdf}</span>
             </button>
+
+            {tauriMode && (
+              <button
+                type="button"
+                data-testid="open-typst-button"
+                data-coachmark-group="row1"
+                data-coachmark-block="deck-files"
+                onClick={() => void typstLive.pickAndStartWatch()}
+                title={t.openTypstBtn}
+                aria-label={t.openTypstBtn}
+                className="inline-flex h-7 shrink-0 items-center gap-1 rounded border border-slate-200 bg-slate-100 px-2 text-xs font-medium text-slate-700 transition hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
+              >
+                <FileCode2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>{t.openTypstBtn}</span>
+              </button>
+            )}
+
+            {tauriMode &&
+              (typstLive.watchedPath ||
+                typstLive.buildStatus === 'error' ||
+                (typstLive.cliStatus && !typstLive.cliStatus.available)) && (
+                <button
+                  type="button"
+                  data-testid="typst-status-badge"
+                  onClick={() => typstLive.setDrawerOpen(true)}
+                  className={`inline-flex h-7 shrink-0 items-center gap-1 rounded border px-2 text-[11px] font-semibold transition ${
+                    typstLive.buildStatus === 'error' ||
+                    (typstLive.cliStatus && !typstLive.cliStatus.available)
+                      ? 'border-red-400 bg-red-600 text-white hover:bg-red-500'
+                      : typstLive.buildStatus === 'compiling'
+                        ? 'border-amber-400 bg-amber-500 text-white hover:bg-amber-400'
+                        : 'border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500'
+                  }`}
+                >
+                  <span>
+                    {typstLive.buildStatus === 'error' ||
+                    (typstLive.cliStatus && !typstLive.cliStatus.available)
+                      ? t.typstStatusError
+                      : typstLive.buildStatus === 'compiling'
+                        ? t.typstStatusCompiling
+                        : t.typstStatusOk}
+                  </span>
+                </button>
+              )}
 
             <button
               type="button"
@@ -3627,8 +3939,23 @@ export function PresenterConsole() {
                       <div
                         role="menu"
                         aria-label={t.exportNotesBtn}
-                        className="absolute right-0 z-30 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                        className="absolute right-0 z-30 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-800"
                       >
+                        {linkedNotesSource && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            data-testid="overwrite-notes-md-button"
+                            onClick={() => {
+                              setExportMenuOpen(false);
+                              void handleOverwriteLinkedMarkdown();
+                            }}
+                            className="flex w-full items-center gap-1.5 border-b border-slate-100 px-3 py-1.5 text-left text-xs font-medium text-blue-700 hover:bg-slate-100 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-slate-700"
+                          >
+                            <Save className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{t.overwriteNotesMdItem}</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           role="menuitem"
@@ -3667,6 +3994,39 @@ export function PresenterConsole() {
                   </div>
                 </div>
               </div>
+
+              {hasRepeatedLabels && (
+                <div className="mb-1.5 flex shrink-0 items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] dark:border-slate-800 dark:bg-slate-950/70">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      data-testid="logical-slide-toggle"
+                      checked={shareNotesByPageLabel}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setShareNotesByPageLabel(next);
+                        void storageService.savePrefs({ shareNotesByPageLabel: next });
+                      }}
+                    />
+                    <span>{t.logicalShareLabel}</span>
+                  </label>
+                  <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+                    <span>
+                      #{resolvedNote.group.label} ({resolvedNote.group.subIndex}/
+                      {resolvedNote.group.subCount})
+                    </span>
+                    {resolvedNote.inheritedFromPage !== null && (
+                      <span
+                        data-testid="logical-inherited-badge"
+                        className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                      >
+                        {t.logicalInheritedFrom}
+                        {resolvedNote.inheritedFromPage}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {isEditingNotes ? (
                 <div className="flex flex-1 flex-col gap-2">
@@ -3818,7 +4178,9 @@ export function PresenterConsole() {
           hasDeck={Boolean(meta)}
           embeddedNotesCount={Object.keys(meta?.extractedNotes ?? {}).length}
           onClose={() => setActiveModal('none')}
-          onChooseNotesFile={() => sidecarFileInputRef.current?.click()}
+          onChooseNotesFile={() => {
+            void handleChooseNotesFile();
+          }}
           onDropNotesFile={(file) => {
             void handleSidecarFile(file);
           }}
@@ -3875,6 +4237,7 @@ export function PresenterConsole() {
         <RehearsalStatsModal
           report={rehearsalReport}
           deckFileName={meta.fileName}
+          pageLabels={meta.pageLabels}
           onClose={() => setActiveModal('none')}
           onJumpToSlide={(page) => {
             navigateToSlide(page);
@@ -3894,6 +4257,75 @@ export function PresenterConsole() {
             triggerTextDownload(`${baseName}-rehearsal-report.csv`, csv, 'text/csv;charset=utf-8');
           }}
         />
+      )}
+
+      {/* Typst Live Compile Drawer */}
+      {typstLive.drawerOpen && (
+        <TypstCompileDrawer
+          cliStatus={typstLive.cliStatus}
+          watchedPath={typstLive.watchedPath}
+          buildStatus={typstLive.buildStatus}
+          lastDurationMs={typstLive.lastDurationMs}
+          diagnostics={typstLive.diagnostics}
+          rootDir={typstLive.rootDir}
+          inputsText={typstLive.inputsText}
+          fontPathsText={typstLive.fontPathsText}
+          fonts={typstLive.fonts}
+          loadingFonts={typstLive.loadingFonts}
+          onChangeRootDir={typstLive.setRootDir}
+          onChangeInputsText={typstLive.setInputsText}
+          onChangeFontPathsText={typstLive.setFontPathsText}
+          onRefreshCli={() => void typstLive.refreshCliStatus()}
+          onPickTypstFile={() => void typstLive.pickAndStartWatch()}
+          onRecompile={() => void typstLive.recompileNow()}
+          onStopWatch={() => void typstLive.stopWatch()}
+          onRefreshFonts={() => void typstLive.refreshFonts()}
+          onClose={() => typstLive.setDrawerOpen(false)}
+        />
+      )}
+
+      {/* Tauri Close Guard Confirmation Modal */}
+      {closeGuardModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t.closeGuardModalTitle}
+          data-testid="close-guard-modal"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCloseGuardModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-[1px] dark:bg-black/75"
+        >
+          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+            <h2 className="text-base font-bold">{t.closeGuardModalTitle}</h2>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              {t.closeGuardModalDesc}
+            </p>
+            <div className="mt-4 flex justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setCloseGuardModalOpen(false)}
+                className="rounded border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                {t.closeGuardKeepPresenting}
+              </button>
+              <button
+                type="button"
+                data-testid="close-guard-force-exit"
+                onClick={() => {
+                  setCloseGuardModalOpen(false);
+                  setGuardEnabled(false);
+                  void forceCloseApp();
+                }}
+                className="rounded bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-500"
+              >
+                {t.closeGuardForceExit}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

@@ -1,15 +1,24 @@
+import { listen } from '@tauri-apps/api/event';
 import type {
   LaunchAudienceOptions,
   LaunchAudienceResult,
+  LaunchFileRequest,
   MonitorDescriptor,
   PlatformInfo,
+  TypstCliStatus,
+  TypstCompileOptions,
+  TypstCompileResultEvent,
 } from './types.ts';
 
 export type {
   LaunchAudienceOptions,
   LaunchAudienceResult,
+  LaunchFileRequest,
   MonitorDescriptor,
   PlatformInfo,
+  TypstCliStatus,
+  TypstCompileOptions,
+  TypstCompileResultEvent,
 } from './types.ts';
 
 type TauriInvokeFn = <T = unknown>(
@@ -357,4 +366,181 @@ export async function getPlatformInfo(): Promise<PlatformInfo | null> {
   } catch {
     return null;
   }
+}
+
+function toArrayBuffer(payload: unknown): ArrayBuffer {
+  if (payload instanceof ArrayBuffer) {
+    return payload;
+  }
+  if (ArrayBuffer.isView(payload)) {
+    const copy = new Uint8Array(payload.byteLength);
+    copy.set(new Uint8Array(payload.buffer, payload.byteOffset, payload.byteLength));
+    return copy.buffer;
+  }
+  if (Array.isArray(payload)) {
+    return new Uint8Array(payload.map((n) => Number(n) & 0xff)).buffer;
+  }
+  throw new Error('Unexpected binary IPC payload.');
+}
+
+export async function checkTypstCli(): Promise<TypstCliStatus | null> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return null;
+  try {
+    return await invoke<TypstCliStatus>('check_typst_cli');
+  } catch (err) {
+    return {
+      available: false,
+      version: null,
+      path: null,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+export async function listTypstFonts(fontPaths?: string[]): Promise<string[]> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return [];
+  return await invoke<string[]>('list_typst_fonts', {
+    fontPaths: fontPaths && fontPaths.length > 0 ? fontPaths : null,
+  });
+}
+
+export async function pickTypstFile(): Promise<string | null> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return null;
+  return await invoke<string | null>('pick_typst_file');
+}
+
+export async function startTypstWatch(
+  filePath: string,
+  options?: TypstCompileOptions,
+): Promise<void> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    throw new Error('Typst live watch is only available in the desktop app.');
+  }
+  await invoke('start_typst_watch', {
+    filePath,
+    options: options ?? null,
+  });
+}
+
+export async function stopTypstWatch(): Promise<void> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return;
+  await invoke('stop_typst_watch');
+}
+
+export async function readCompiledPdf(): Promise<ArrayBuffer> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    throw new Error('Compiled PDF IPC is only available in the desktop app.');
+  }
+  const raw = await invoke<unknown>('read_compiled_pdf');
+  return toArrayBuffer(raw);
+}
+
+export async function pickNotesFilePath(): Promise<string | null> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return null;
+  return await invoke<string | null>('pick_notes_file');
+}
+
+export async function readLocalTextFile(path: string): Promise<string> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    throw new Error('Local file read is only available in the desktop app.');
+  }
+  return await invoke<string>('read_local_text_file', { path });
+}
+
+export async function writeLocalTextFile(path: string, content: string): Promise<void> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    throw new Error('Local file write is only available in the desktop app.');
+  }
+  await invoke('write_local_text_file', { path, content });
+}
+
+export async function readLocalBinaryFile(path: string): Promise<ArrayBuffer> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    throw new Error('Local binary read is only available in the desktop app.');
+  }
+  const raw = await invoke<unknown>('read_local_binary_file', { path });
+  return toArrayBuffer(raw);
+}
+
+export async function getLaunchFile(): Promise<LaunchFileRequest | null> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return null;
+  try {
+    return await invoke<LaunchFileRequest | null>('get_launch_file');
+  } catch {
+    return null;
+  }
+}
+
+export async function setCloseGuard(enabled: boolean): Promise<void> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return;
+  try {
+    await invoke('set_close_guard', { enabled });
+  } catch {
+    // Ignore when running outside Tauri or older mock
+  }
+}
+
+export async function forceCloseApp(): Promise<void> {
+  const invoke = getTauriInvoke();
+  if (!invoke) return;
+  await invoke('force_close_app');
+}
+
+async function subscribeTauriEvent<T>(
+  eventName: string,
+  handler: (payload: T) => void,
+): Promise<() => void> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+
+  let unlistenTauri: (() => void) | null = null;
+  try {
+    unlistenTauri = await listen<T>(eventName, (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    // Fallback to DOM CustomEvent when running under lightweight mocked __TAURI_INTERNALS__
+  }
+
+  const domListener = (ev: Event) => {
+    const custom = ev as CustomEvent<T>;
+    handler(custom.detail);
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener(`tauri-mock:${eventName}`, domListener);
+  }
+
+  return () => {
+    try {
+      unlistenTauri?.();
+    } catch {
+      // Ignore cleanup error
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(`tauri-mock:${eventName}`, domListener);
+    }
+  };
+}
+
+export function onTypstCompileResult(
+  handler: (payload: TypstCompileResultEvent) => void,
+): Promise<() => void> {
+  return subscribeTauriEvent<TypstCompileResultEvent>('typst-compile-result', handler);
+}
+
+export function onCloseGuardBlocked(handler: () => void): Promise<() => void> {
+  return subscribeTauriEvent<unknown>('close-guard-blocked', () => handler());
 }

@@ -425,6 +425,7 @@ export class PdfEngine {
       let suggestedCropMode = computeSuggestedCropMode(firstPageAspectRatio);
       let outline: LoadedDeckMeta['outline'] = [];
       let extractedNotes: Record<number, string> = {};
+      let extractedSlideTargets: Record<number, number> | undefined;
       let pdfpcConfig: LoadedDeckMeta['extractedPdfpcConfig'];
 
       try {
@@ -442,6 +443,7 @@ export class PdfEngine {
         const parsedAttachments = await parseNotesAttachments(localDoc);
         assertCurrentGeneration();
         extractedNotes = parsedAttachments.notes;
+        extractedSlideTargets = parsedAttachments.targets;
         pdfpcConfig = parsedAttachments.pdfpcConfig;
 
         const textAnnotationType = this.pdfjs.AnnotationType?.TEXT ?? PDF_TEXT_ANNOTATION_TYPE;
@@ -481,6 +483,7 @@ export class PdfEngine {
         suggestedCropMode,
         outline,
         extractedNotes,
+        ...(extractedSlideTargets ? { extractedSlideTargets } : {}),
         ...(pdfpcConfig ? { extractedPdfpcConfig: pdfpcConfig } : {}),
       };
 

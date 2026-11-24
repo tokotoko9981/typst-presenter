@@ -29,3 +29,33 @@ export interface PlatformInfo {
   arch: string;
   version: string;
 }
+
+export interface TypstCliStatus {
+  available: boolean;
+  version: string | null;
+  path: string | null;
+  error: string | null;
+}
+
+export interface TypstCompileOptions {
+  root?: string;
+  inputs?: string[];
+  fontPaths?: string[];
+}
+
+export interface TypstCompileResultEvent {
+  buildId: number;
+  filePath: string;
+  fileName: string;
+  ok: boolean;
+  durationMs: number;
+  byteLength: number | null;
+  stderr: string;
+  exitCode: number | null;
+  pdfpcQueryJson: string | null;
+}
+
+export interface LaunchFileRequest {
+  path: string;
+  kind: 'typ' | 'pdf';
+}

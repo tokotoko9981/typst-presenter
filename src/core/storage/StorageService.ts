@@ -37,6 +37,7 @@ export const DEFAULT_PREFS: PresenterPrefs = {
   chimeEnabled: false,
   chimeVolume: 0.7,
   audienceProgressBar: false,
+  shareNotesByPageLabel: true,
 };
 
 export function clampNoteFontSize(px: number): number {

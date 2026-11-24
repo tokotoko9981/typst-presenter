@@ -1,3 +1,4 @@
+import { parseValidHHMM } from '../timer/TimerEngine.ts';
 import type { LoadedDeckMeta, OutlineNode } from './types.ts';
 
 export interface PdfOutlineItemLike {
@@ -224,40 +225,111 @@ function splitMarkdownByHr(text: string): string[] {
   return parts;
 }
 
+function extractTargetDirectiveFromText(
+  rawText: string,
+  pageNum: number,
+  targets: Record<number, number>,
+): void {
+  const matches = rawText.matchAll(/^[ \t]*<!--\s*target:\s*(\d+)\s*-->[ \t]*$/gim);
+  for (const m of matches) {
+    const sec = Number.parseInt(m[1]!, 10);
+    if (Number.isFinite(sec) && sec > 0) {
+      targets[pageNum] = sec;
+    }
+  }
+}
+
+function extractLeadingFrontmatterConfig(
+  text: string,
+): { body: string; config?: NonNullable<LoadedDeckMeta['extractedPdfpcConfig']> } {
+  const m = text.match(/^---[ \t]*\n([\s\S]*?\n)?---[ \t]*(?:\n|$)/);
+  if (!m) {
+    return { body: text };
+  }
+  const rawYaml = m[1] ?? '';
+  const body = text.slice(m[0].length);
+  const cfg: NonNullable<LoadedDeckMeta['extractedPdfpcConfig']> = {};
+
+  for (const line of rawYaml.split('\n')) {
+    const kv = line.match(/^[ \t]*([A-Za-z0-9_-]+)[ \t]*:[ \t]*(.+?)[ \t]*$/);
+    if (!kv) continue;
+    const key = kv[1]!.toLowerCase();
+    const val = kv[2]!.replace(/^['"]|['"]$/g, '').trim();
+    if (key === 'duration' || key === 'durationminutes') {
+      const num = Number.parseFloat(val);
+      if (Number.isFinite(num) && num > 0) cfg.durationMinutes = num;
+    } else if (key === 'lastminutes' || key === 'lastminuteswarning') {
+      const num = Number.parseFloat(val);
+      if (Number.isFinite(num) && num >= 0) cfg.lastMinutes = num;
+    } else if (key === 'notefontsize' || key === 'notefontsizepx') {
+      const num = Number.parseFloat(val);
+      if (Number.isFinite(num) && num > 0) cfg.noteFontSize = num;
+    } else if ((key === 'endtime' || key === 'endtimehhmm') && parseValidHHMM(val) !== null) {
+      cfg.endTimeHHMM = val;
+    } else if ((key === 'qrurl' || key === 'qr_url' || key === 'qr') && val.length > 0) {
+      cfg.qrUrl = val;
+    } else if ((key === 'qrlabel' || key === 'qr_label') && val.length > 0) {
+      cfg.qrLabel = val;
+    }
+  }
+
+  return Object.keys(cfg).length > 0 ? { body, config: cfg } : { body };
+}
+
+function extractTargetFromUnknown(value: unknown): number | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const obj = value as Record<string, unknown>;
+  const candidate = obj.targetSeconds ?? obj.target;
+  if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) {
+    return Math.round(candidate);
+  }
+  return undefined;
+}
+
 function parseMarkdownNotes(
   text: string,
   fileName: string,
   notes: Record<number, string>,
-): void {
+  targets: Record<number, number>,
+): LoadedDeckMeta['extractedPdfpcConfig'] | undefined {
   const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
 
   const slideMatch = fileName.match(/notes-slide-(\d+)\.(?:md|markdown|txt)$/i);
   if (slideMatch) {
     const pageNum = Number.parseInt(slideMatch[1]!, 10);
+    extractTargetDirectiveFromText(normalized, pageNum, targets);
     mergePageNote(notes, pageNum, normalized);
-    return;
+    return undefined;
   }
 
+  const { body, config } = extractLeadingFrontmatterConfig(normalized);
+
   const markerRegex = /^[ \t]*<!--\s*slide:\s*(\d+)\s*-->[ \t]*$/gim;
-  const matches = Array.from(normalized.matchAll(markerRegex));
+  const matches = Array.from(body.matchAll(markerRegex));
   if (matches.length > 0) {
     for (let i = 0; i < matches.length; i += 1) {
       const m = matches[i]!;
       const pageNum = Number.parseInt(m[1]!, 10);
       const start = (m.index ?? 0) + m[0].length;
       const end =
-        i + 1 < matches.length ? (matches[i + 1]!.index ?? normalized.length) : normalized.length;
-      let block = normalized.slice(start, end).trim();
+        i + 1 < matches.length ? (matches[i + 1]!.index ?? body.length) : body.length;
+      let block = body.slice(start, end).trim();
       block = block.replace(/(?:^|\n)[ \t]*---[ \t]*$/, '').trim();
+      extractTargetDirectiveFromText(block, pageNum, targets);
       mergePageNote(notes, pageNum, block);
     }
-    return;
+    return config;
   }
 
-  const parts = splitMarkdownByHr(normalized);
+  const parts = splitMarkdownByHr(body);
   parts.forEach((part, idx) => {
-    mergePageNote(notes, idx + 1, part);
+    const pageNum = idx + 1;
+    extractTargetDirectiveFromText(part, pageNum, targets);
+    mergePageNote(notes, pageNum, part);
   });
+  return config;
 }
 
 function toUint8Array(value: unknown): Uint8Array | null {
@@ -286,10 +358,17 @@ export async function parseNotesAttachments(
   doc: Pick<PdfDocumentExtractLike, 'getAttachments' | 'getAttachmentContent'>,
 ): Promise<{
   notes: Record<number, string>;
+  targets?: Record<number, number>;
   pdfpcConfig?: LoadedDeckMeta['extractedPdfpcConfig'];
 }> {
   const notes: Record<number, string> = {};
+  const targets: Record<number, number> = {};
   let pdfpcConfig: LoadedDeckMeta['extractedPdfpcConfig'] | undefined;
+
+  const mergePdfpcConfig = (incoming?: LoadedDeckMeta['extractedPdfpcConfig']) => {
+    if (!incoming || Object.keys(incoming).length === 0) return;
+    pdfpcConfig = { ...pdfpcConfig, ...incoming };
+  };
 
   if (typeof doc.getAttachments !== 'function') {
     return { notes };
@@ -403,9 +482,71 @@ export async function parseNotesAttachments(
       const presioMatch = lowerName.match(/notes-slide-(\d+)\.json$/i);
       if (presioMatch) {
         const pageNum = Number.parseInt(presioMatch[1]!, 10);
+        const t = extractTargetFromUnknown(parsed);
+        if (t !== undefined) {
+          targets[pageNum] = t;
+        }
         mergePageNote(notes, pageNum, extractNoteTextFromUnknown(parsed));
         continue;
       }
+
+      // Optional top-level bundle / presenter config fields in JSON attachment
+      const jsonCfg: NonNullable<LoadedDeckMeta['extractedPdfpcConfig']> = {};
+      if (
+        typeof obj.globalTargetSeconds === 'number' &&
+        Number.isFinite(obj.globalTargetSeconds) &&
+        obj.globalTargetSeconds > 0
+      ) {
+        jsonCfg.durationMinutes = Math.max(1, Math.round(obj.globalTargetSeconds / 60));
+      } else if (
+        typeof obj.duration === 'number' &&
+        Number.isFinite(obj.duration) &&
+        obj.duration > 0
+      ) {
+        jsonCfg.durationMinutes = obj.duration;
+      }
+      if (
+        typeof obj.lastMinutesWarning === 'number' &&
+        Number.isFinite(obj.lastMinutesWarning) &&
+        obj.lastMinutesWarning >= 0
+      ) {
+        jsonCfg.lastMinutes = obj.lastMinutesWarning;
+      } else if (
+        typeof obj.lastMinutes === 'number' &&
+        Number.isFinite(obj.lastMinutes) &&
+        obj.lastMinutes >= 0
+      ) {
+        jsonCfg.lastMinutes = obj.lastMinutes;
+      }
+      if (
+        typeof obj.noteFontSizePx === 'number' &&
+        Number.isFinite(obj.noteFontSizePx) &&
+        obj.noteFontSizePx > 0
+      ) {
+        jsonCfg.noteFontSize = obj.noteFontSizePx;
+      } else if (
+        typeof obj.noteFontSize === 'number' &&
+        Number.isFinite(obj.noteFontSize) &&
+        obj.noteFontSize > 0
+      ) {
+        jsonCfg.noteFontSize = obj.noteFontSize;
+      }
+      const rawEndTime =
+        typeof obj.endTimeHHMM === 'string'
+          ? obj.endTimeHHMM
+          : typeof obj.endTime === 'string'
+            ? obj.endTime
+            : undefined;
+      if (rawEndTime && parseValidHHMM(rawEndTime) !== null) {
+        jsonCfg.endTimeHHMM = rawEndTime.trim();
+      }
+      if (typeof obj.qrUrl === 'string' && obj.qrUrl.trim().length > 0) {
+        jsonCfg.qrUrl = obj.qrUrl.trim();
+      }
+      if (typeof obj.qrLabel === 'string' && obj.qrLabel.trim().length > 0) {
+        jsonCfg.qrLabel = obj.qrLabel.trim();
+      }
+      mergePdfpcConfig(jsonCfg);
 
       // Array-shaped slides: { slides: [...] } (e.g., strings or { page/slide/idx, markdown/note })
       if (Array.isArray(obj.slides)) {
@@ -434,6 +575,10 @@ export async function parseNotesAttachments(
               }
             }
           }
+          const t = extractTargetFromUnknown(item);
+          if (t !== undefined) {
+            targets[pageNum] = t;
+          }
           mergePageNote(notes, pageNum, extractNoteTextFromUnknown(item));
         }
         continue;
@@ -452,6 +597,10 @@ export async function parseNotesAttachments(
       for (const [key, val] of Object.entries(slidesContainer)) {
         if (/^\d+$/.test(key)) {
           const pageNum = Number.parseInt(key, 10);
+          const t = extractTargetFromUnknown(val);
+          if (t !== undefined) {
+            targets[pageNum] = t;
+          }
           mergePageNote(notes, pageNum, extractNoteTextFromUnknown(val));
         }
       }
@@ -459,11 +608,16 @@ export async function parseNotesAttachments(
     }
 
     if (lowerName.endsWith('.md') || lowerName.endsWith('.markdown') || lowerName.endsWith('.txt')) {
-      parseMarkdownNotes(decoded, lowerName, notes);
+      const mdConfig = parseMarkdownNotes(decoded, lowerName, notes, targets);
+      mergePdfpcConfig(mdConfig);
     }
   }
 
-  return pdfpcConfig ? { notes, pdfpcConfig } : { notes };
+  return {
+    notes,
+    ...(Object.keys(targets).length > 0 ? { targets } : {}),
+    ...(pdfpcConfig ? { pdfpcConfig } : {}),
+  };
 }
 
 function extractXfaHtmlText(node: unknown): string {

@@ -1,11 +1,17 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../core/i18n/I18nContext.tsx';
-import type { RehearsalReport, SlideTimingSummary } from '../../core/timer/RehearsalTracker.ts';
+import { hasRepeatedPageLabels } from '../../core/notes/logicalSlides.ts';
+import {
+  aggregateReportByLogicalSlide,
+  type RehearsalReport,
+  type SlideTimingSummary,
+} from '../../core/timer/RehearsalTracker.ts';
 import { formatDurationMMSS } from '../../core/timer/TimerEngine.ts';
 
 export interface RehearsalStatsModalProps {
   report: RehearsalReport;
   deckFileName: string;
+  pageLabels?: string[] | null;
   onClose: () => void;
   onJumpToSlide: (page: number) => void;
   onApplyActualAsTargets: (targets: Record<number, number>) => void;
@@ -50,13 +56,47 @@ function formatDeltaSeconds(delta: number): string {
 export function RehearsalStatsModal({
   report,
   deckFileName,
+  pageLabels,
   onClose,
   onJumpToSlide,
   onApplyActualAsTargets,
   onExportMarkdown,
   onExportCsv,
 }: RehearsalStatsModalProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const hasLogicalGroups = useMemo(
+    () => hasRepeatedPageLabels(pageLabels, report.totalPages),
+    [pageLabels, report.totalPages],
+  );
+  const [groupByLogical, setGroupByLogical] = useState<boolean>(hasLogicalGroups);
+
+  const logicalAggregated = useMemo(() => {
+    if (!hasLogicalGroups || !groupByLogical) {
+      return null;
+    }
+    return aggregateReportByLogicalSlide(report, pageLabels);
+  }, [hasLogicalGroups, groupByLogical, report, pageLabels]);
+
+  const displayedSlides = useMemo(
+    () =>
+      logicalAggregated
+        ? logicalAggregated.logicalSlides.map((ls) => ({
+            ...ls,
+            displayTitle:
+              ls.pages.length > 1
+                ? `${t.slideLabel} ${ls.label} (p.${ls.pages[0]}-${ls.pages[ls.pages.length - 1]})`
+                : `${t.slideLabel} ${ls.label}`,
+          }))
+        : report.slides.map((s) => ({
+            ...s,
+            displayTitle: `${t.slideLabel} ${s.page}`,
+          })),
+    [logicalAggregated, report.slides, t.slideLabel],
+  );
+
+  const effectiveTotalTargetSeconds = logicalAggregated
+    ? logicalAggregated.totalTargetSeconds
+    : report.totalTargetSeconds;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -71,11 +111,11 @@ export function RehearsalStatsModal({
 
   const maxActualSeconds = useMemo(
     () =>
-      report.slides.reduce(
+      displayedSlides.reduce(
         (max, slide) => (slide.actualSeconds > max ? slide.actualSeconds : max),
         0,
       ),
-    [report.slides],
+    [displayedSlides],
   );
 
   const derivedTargets = useMemo(() => {
@@ -90,8 +130,8 @@ export function RehearsalStatsModal({
 
   const hasApplicableTargets = Object.keys(derivedTargets).length > 0;
   const totalDelta =
-    report.totalTargetSeconds > 0
-      ? report.totalActualSeconds - report.totalTargetSeconds
+    effectiveTotalTargetSeconds > 0
+      ? report.totalActualSeconds - effectiveTotalTargetSeconds
       : null;
 
   return (
@@ -118,17 +158,40 @@ export function RehearsalStatsModal({
               {deckFileName || t.presentationFallback}
             </p>
           </div>
-          {totalDelta !== null && (
-            <span
-              className={`shrink-0 rounded px-2 py-0.5 font-mono text-xs font-semibold ${
-                totalDelta > 0
-                  ? 'border border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
-                  : 'border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-              }`}
-            >
-              {t.totalDeltaPrefix} {formatDeltaSeconds(totalDelta)}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {hasLogicalGroups && (
+              <button
+                type="button"
+                data-testid="rehearsal-logical-toggle"
+                aria-pressed={groupByLogical}
+                onClick={() => setGroupByLogical((prev) => !prev)}
+                className={`shrink-0 rounded border px-2.5 py-1 text-[11px] font-medium transition ${
+                  groupByLogical
+                    ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-500'
+                    : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                {groupByLogical
+                  ? locale === 'ja'
+                    ? '論理スライド合算'
+                    : 'Logical Slides'
+                  : locale === 'ja'
+                    ? '物理ページ別'
+                    : 'Physical Pages'}
+              </button>
+            )}
+            {totalDelta !== null && (
+              <span
+                className={`shrink-0 rounded px-2 py-0.5 font-mono text-xs font-semibold ${
+                  totalDelta > 0
+                    ? 'border border-red-300 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
+                    : 'border border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                }`}
+              >
+                {t.totalDeltaPrefix} {formatDeltaSeconds(totalDelta)}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Summary Cards */}
@@ -154,12 +217,14 @@ export function RehearsalStatsModal({
               data-testid="rehearsal-total-target"
               className="mt-0.5 font-mono text-lg font-bold text-slate-900 dark:text-slate-100"
             >
-              {report.totalTargetSeconds > 0
-                ? formatDurationMMSS(report.totalTargetSeconds * 1000)
+              {effectiveTotalTargetSeconds > 0
+                ? formatDurationMMSS(effectiveTotalTargetSeconds * 1000)
                 : '—'}
             </div>
             <div className="text-[11px] text-slate-500">
-              {report.totalTargetSeconds > 0 ? `${report.totalTargetSeconds}s` : t.noTargetsSet}
+              {effectiveTotalTargetSeconds > 0
+                ? `${effectiveTotalTargetSeconds}s`
+                : t.noTargetsSet}
             </div>
           </div>
 
@@ -183,12 +248,12 @@ export function RehearsalStatsModal({
 
         {/* Per-Slide Breakdown */}
         <div className="flex-1 space-y-2 overflow-y-auto px-5 py-3">
-          {report.slides.length === 0 ? (
+          {displayedSlides.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
               {t.noTimingData}
             </p>
           ) : (
-            report.slides.map((slide) => {
+            displayedSlides.map((slide) => {
               const barPercent =
                 slide.targetSeconds && slide.targetSeconds > 0
                   ? Math.min(100, Math.round((slide.actualSeconds / slide.targetSeconds) * 100))
@@ -198,7 +263,7 @@ export function RehearsalStatsModal({
 
               return (
                 <button
-                  key={slide.page}
+                  key={`${slide.page}-${slide.displayTitle}`}
                   type="button"
                   data-testid={`rehearsal-slide-row-${slide.page}`}
                   onClick={() => onJumpToSlide(slide.page)}
@@ -207,7 +272,7 @@ export function RehearsalStatsModal({
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {t.slideLabel} {slide.page}
+                        {slide.displayTitle}
                       </span>
                       <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
                         {slide.visits} {slide.visits === 1 ? t.visitSingular : t.visitPlural}

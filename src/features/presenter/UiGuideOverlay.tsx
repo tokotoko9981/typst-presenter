@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Tag, X } from 'lucide-react';
 import { useI18n } from '../../core/i18n/I18nContext.tsx';
+import type { TranslationDict } from '../../core/i18n/translations.ts';
 
 export type CoachmarkGroup = 'row1' | 'row2' | 'notes';
 
@@ -11,6 +12,7 @@ export interface UiGuideOverlayProps {
 interface AnchorItem {
   id: string;
   group: CoachmarkGroup;
+  block: string;
   label: string;
   left: number;
   top: number;
@@ -83,6 +85,37 @@ function boxesOverlap(a: Box, b: Box, padX: number, padY: number): boolean {
   );
 }
 
+function resolveBlockLabel(block: string, t: TranslationDict): string {
+  switch (block) {
+    case 'deck-files':
+      return t.uiGuideBlockDeckFiles;
+    case 'audience-display':
+      return t.uiGuideBlockAudienceDisplay;
+    case 'app-settings':
+      return t.uiGuideBlockAppSettings;
+    case 'slide-nav':
+      return t.uiGuideBlockSlideNav;
+    case 'split-crop':
+      return t.uiGuideBlockSplitCrop;
+    case 'stage-curtain':
+      return t.uiGuideBlockStageCurtain;
+    case 'pointer-ink':
+      return t.uiGuideBlockPointerInk;
+    case 'ink-actions':
+      return t.uiGuideBlockInkActions;
+    case 'views-guard':
+      return t.uiGuideBlockViewsGuard;
+    case 'notes-font':
+      return t.uiGuideBlockNotesFont;
+    case 'notes-target':
+      return t.uiGuideBlockNotesTarget;
+    case 'notes-io':
+      return t.uiGuideBlockNotesIo;
+    default:
+      return block;
+  }
+}
+
 function collectAnchors(): AnchorItem[] {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -108,6 +141,7 @@ function collectAnchors(): AnchorItem[] {
     items.push({
       id: `${group}-${idx}`,
       group,
+      block: el.dataset.coachmarkBlock || `${group}-${idx}`,
       label,
       left: rect.left,
       top: rect.top,
@@ -119,6 +153,28 @@ function collectAnchors(): AnchorItem[] {
   });
 
   return items;
+}
+
+function buildBlockAnchors(anchors: AnchorItem[], t: TranslationDict): AnchorItem[] {
+  const map = new Map<string, AnchorItem>();
+  for (const item of anchors) {
+    const existing = map.get(item.block);
+    if (!existing) {
+      map.set(item.block, {
+        ...item,
+        id: `block-${item.block}`,
+        label: resolveBlockLabel(item.block, t),
+      });
+    } else {
+      existing.left = Math.min(existing.left, item.left);
+      existing.top = Math.min(existing.top, item.top);
+      existing.right = Math.max(existing.right, item.right);
+      existing.bottom = Math.max(existing.bottom, item.bottom);
+      existing.width = existing.right - existing.left;
+      existing.height = existing.bottom - existing.top;
+    }
+  }
+  return Array.from(map.values());
 }
 
 function computeCalloutLayout(
@@ -145,9 +201,9 @@ function computeCalloutLayout(
   const obstacles: Box[] = [
     { left: 0, top: 0, right: vw, bottom: headerBottom + 6 },
     {
-      left: Math.max(8, vw / 2 - 260),
-      top: Math.max(0, vh - 48),
-      right: Math.min(vw - 8, vw / 2 + 260),
+      left: Math.max(8, vw / 2 - 280),
+      top: Math.max(0, vh - 52),
+      right: Math.min(vw - 8, vw / 2 + 280),
       bottom: vh,
     },
   ];
@@ -162,7 +218,7 @@ function computeCalloutLayout(
 
   const placed: PlacedCallout[] = [];
   const placedBoxes: Box[] = [];
-  const rowStep = 26;
+  const rowStep = 28;
   const edgePad = 8;
 
   const tryPlaceItem = (
@@ -173,8 +229,8 @@ function computeCalloutLayout(
     maxY: number,
   ): PlacedCallout => {
     const measured = sizes[item.id] ?? {
-      width: Math.min(200, Math.max(64, item.label.length * 10 + 18)),
-      height: 22,
+      width: Math.min(260, Math.max(72, item.label.length * 10 + 22)),
+      height: 24,
     };
     const pillW = Math.min(measured.width, Math.max(60, maxX - minX));
     const pillH = measured.height;
@@ -182,7 +238,7 @@ function computeCalloutLayout(
     const anchorY = item.bottom;
 
     const idealX = clamp(anchorX - pillW / 2, minX, maxX - pillW);
-    const localOffsets = [0, -24, 24, -48, 48, -72, 72, -96, 96, -128, 128];
+    const localOffsets = [0, -28, 28, -56, 56, -88, 88, -128, 128, -172, 172];
 
     let chosenX = idealX;
     let chosenY = clamp(startY, 0, Math.max(startY, maxY - pillH));
@@ -205,8 +261,7 @@ function computeCalloutLayout(
     }
 
     if (!found) {
-      // Fallback: full horizontal scan across available lanes
-      for (let y = startY; y + pillH <= vh - 46; y += rowStep) {
+      for (let y = startY; y + pillH <= vh - 52; y += rowStep) {
         for (let x = minX; x <= maxX - pillW; x += 18) {
           const candidate: Box = { left: x, top: y, right: x + pillW, bottom: y + pillH };
           const collidesPlaced = placedBoxes.some((b) => boxesOverlap(candidate, b, 4, 3));
@@ -231,8 +286,8 @@ function computeCalloutLayout(
 
     const elbowY =
       item.group === 'notes'
-        ? Math.max(anchorY + 4, chosenY - 5)
-        : Math.max(headerBottom + 4, chosenY - 5);
+        ? Math.max(anchorY + 4, chosenY - 6)
+        : Math.max(headerBottom + 4, chosenY - 6);
 
     return {
       ...item,
@@ -246,26 +301,23 @@ function computeCalloutLayout(
     };
   };
 
-  let nextHeaderY = headerBottom + 12;
+  let nextHeaderY = headerBottom + 14;
   for (const item of row1) {
-    const callout = tryPlaceItem(item, nextHeaderY, edgePad, vw - edgePad, vh - 52);
-    placed.push(callout);
+    placed.push(tryPlaceItem(item, nextHeaderY, edgePad, vw - edgePad, vh - 54));
   }
 
   if (placed.length > 0) {
-    nextHeaderY = Math.max(...placed.map((p) => p.pillY + p.pillH)) + 8;
+    nextHeaderY = Math.max(...placed.map((p) => p.pillY + p.pillH)) + 10;
   }
 
   for (const item of row2) {
-    const callout = tryPlaceItem(item, nextHeaderY, edgePad, vw - edgePad, vh - 52);
-    placed.push(callout);
+    placed.push(tryPlaceItem(item, nextHeaderY, edgePad, vw - edgePad, vh - 54));
   }
 
-  const notesStartY = notesMaxBottom + 12;
+  const notesStartY = notesMaxBottom + 14;
   const notesBandLeft = Math.max(edgePad, notesMinLeft - 12);
   for (const item of notes) {
-    const callout = tryPlaceItem(item, notesStartY, notesBandLeft, vw - edgePad, vh - 52);
-    placed.push(callout);
+    placed.push(tryPlaceItem(item, notesStartY, notesBandLeft, vw - edgePad, vh - 54));
   }
 
   return placed;
@@ -303,9 +355,11 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const blockAnchors = useMemo(() => buildBlockAnchors(anchors, t), [anchors, t]);
+
   useLayoutEffect(() => {
     const nextSizes: Record<string, PillSize> = {};
-    for (const item of anchors) {
+    for (const item of blockAnchors) {
       const el = measureRefs.current[item.id];
       if (el) {
         const rect = el.getBoundingClientRect();
@@ -316,9 +370,14 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
       }
     }
     setSizes(nextSizes);
-  }, [anchors]);
+  }, [blockAnchors]);
 
-  const placed = computeCalloutLayout(anchors, sizes, viewport.w, viewport.h);
+  const placedCallouts = useMemo(
+    () => computeCalloutLayout(blockAnchors, sizes, viewport.w, viewport.h),
+    [blockAnchors, sizes, viewport.w, viewport.h],
+  );
+
+  const hasNotes = anchors.some((a) => a.group === 'notes');
 
   return (
     <div
@@ -327,11 +386,11 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
       aria-label={t.uiGuideHeaderTitle}
       data-testid="ui-guide-overlay"
       onClick={onClose}
-      className="fixed inset-0 z-50 cursor-pointer bg-slate-950/70 select-none"
+      className="fixed inset-0 z-50 cursor-pointer bg-slate-950/75 select-none"
     >
       {/* Hidden pass for exact pixel measurement of pill strings */}
       <div aria-hidden="true" className="pointer-events-none fixed top-0 left-0 opacity-0">
-        {anchors.map((item) => (
+        {blockAnchors.map((item) => (
           <span
             key={item.id}
             ref={(el) => {
@@ -352,7 +411,7 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
         className="pointer-events-none fixed inset-0 h-full w-full"
         aria-hidden="true"
       >
-        {placed.map((item) => {
+        {placedCallouts.map((item) => {
           const targetX = item.pillX + item.pillW / 2;
           const targetY = item.pillY;
           const color = GROUP_COLORS[item.group].stroke;
@@ -367,7 +426,7 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
                 fill="none"
                 stroke={color}
                 strokeWidth={1.35}
-                strokeOpacity={0.75}
+                strokeOpacity={0.8}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -377,8 +436,8 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
         })}
       </svg>
 
-      {/* Highlight boxes over target controls */}
-      {anchors.map((item) => (
+      {/* Highlight boxes over functional control blocks */}
+      {blockAnchors.map((item) => (
         <div
           key={`ring-${item.id}`}
           aria-hidden="true"
@@ -392,12 +451,13 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
         />
       ))}
 
-      {/* Collision-free Tooltip Callout Pills */}
-      {placed.map((item) => (
+      {/* Collision-free Aggregated Block Callout Pills */}
+      {placedCallouts.map((item) => (
         <div
           key={`pill-${item.id}`}
           data-testid="ui-guide-pill"
           data-group={item.group}
+          data-block={item.block}
           style={{
             left: `${item.pillX}px`,
             top: `${item.pillY}px`,
@@ -416,7 +476,7 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
       {/* Compact Legend & Dismiss Pill */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-3 left-1/2 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-3 rounded-full border border-slate-700 bg-slate-900/95 px-4 py-1.5 text-xs whitespace-nowrap text-slate-200 shadow-2xl"
+        className="fixed bottom-3 left-1/2 z-30 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-3 rounded-full border border-slate-700 bg-slate-900/95 px-4 py-1.5 text-xs whitespace-nowrap text-slate-200 shadow-2xl"
       >
         <span className="inline-flex shrink-0 items-center gap-1.5 font-semibold text-white">
           <Tag className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
@@ -430,13 +490,13 @@ export function UiGuideOverlay({ onClose }: UiGuideOverlayProps) {
           <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
           <span>{t.uiGuideRow2}</span>
         </span>
-        {anchors.some((a) => a.group === 'notes') && (
+        {hasNotes && (
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-emerald-300">
             <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden="true" />
             <span>{t.uiGuideNotes}</span>
           </span>
         )}
-        <span className="hidden shrink-0 text-[11px] text-slate-400 md:inline">
+        <span className="hidden shrink-0 text-[11px] text-slate-400 lg:inline">
           {t.uiGuideCloseHint}
         </span>
         <button

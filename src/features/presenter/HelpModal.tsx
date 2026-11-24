@@ -141,10 +141,12 @@ export function HelpModal({ initialTab = 'shortcuts', onClose }: HelpModalProps)
           {activeTab === 'shortcuts' && (
             <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
               {[
-                [['→', 'Space', '←'], t.shortcutNav],
+                [['→', '↓', 'PgDn', 'Space', '←', '↑', 'PgUp'], t.shortcutNav],
+                [['Home', 'End'], t.shortcutHomeEnd],
                 [['1-9', 'Enter'], t.shortcutJump],
-                [['B'], t.shortcutBlackout],
+                [['B', '.'], t.shortcutBlackout],
                 [['W'], t.shortcutWhiteout],
+                [['Esc'], t.shortcutEscClear],
                 [['F'], t.shortcutFreeze],
                 [['L'], t.shortcutLaser],
                 [['D'], t.shortcutPen],

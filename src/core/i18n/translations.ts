@@ -80,6 +80,18 @@ export interface TranslationDict {
   uiGuideRow2: string;
   uiGuideNotes: string;
   uiGuideCloseHint: string;
+  uiGuideBlockDeckFiles: string;
+  uiGuideBlockAudienceDisplay: string;
+  uiGuideBlockAppSettings: string;
+  uiGuideBlockSlideNav: string;
+  uiGuideBlockSplitCrop: string;
+  uiGuideBlockStageCurtain: string;
+  uiGuideBlockPointerInk: string;
+  uiGuideBlockInkActions: string;
+  uiGuideBlockViewsGuard: string;
+  uiGuideBlockNotesFont: string;
+  uiGuideBlockNotesTarget: string;
+  uiGuideBlockNotesIo: string;
   quickGuideBtn: string;
   localeToggleTitle: string;
   themeToLight: string;
@@ -185,9 +197,11 @@ export interface TranslationDict {
   helpQuickStep4Title: string;
   helpQuickStep4Body: string;
   shortcutNav: string;
+  shortcutHomeEnd: string;
   shortcutJump: string;
   shortcutBlackout: string;
   shortcutWhiteout: string;
+  shortcutEscClear: string;
   shortcutFreeze: string;
   shortcutLaser: string;
   shortcutPen: string;
@@ -306,6 +320,18 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideRow2: 'Stage & Tools',
     uiGuideNotes: 'Notes Header',
     uiGuideCloseHint: 'Click anywhere or press Esc / I to close',
+    uiGuideBlockDeckFiles: 'Deck & Watch (Open / Sample / Recent / Watch)',
+    uiGuideBlockAudienceDisplay: 'Audience Window & Monitor Selection',
+    uiGuideBlockAppSettings: 'Theme, Language, UI Guide (I) & Help (?)',
+    uiGuideBlockSlideNav: 'Slide Navigation & Direct Jump',
+    uiGuideBlockSplitCrop: 'Split-Note Crop & L|R Swap',
+    uiGuideBlockStageCurtain: 'Blackout (B / .) · Whiteout (W) · Freeze (F)',
+    uiGuideBlockPointerInk: 'Laser (L) · Pen (D, colors, +/-) · Spotlight (S, [ / ])',
+    uiGuideBlockInkActions: 'Undo · Clear (C) · Show/Hide Ink (H)',
+    uiGuideBlockViewsGuard: 'Focus Guard · Stats (R) · Grid (G) · Outline (O)',
+    uiGuideBlockNotesFont: 'Note Font Size (A- / A+)',
+    uiGuideBlockNotesTarget: 'Slide Target Duration (sec)',
+    uiGuideBlockNotesIo: 'Edit (E) · Import · Embedded · Export Notes',
     quickGuideBtn: 'Quick Guide (?)',
     localeToggleTitle: 'Switch language (JP / EN)',
     themeToLight: 'Switch to Light Mode',
@@ -417,9 +443,11 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
       'Use Laser (L), Pen (D), Spotlight (S; click to pin, wheel or [ / ] to resize), curtains (B/W), Freeze (F), and Stats (R) to inspect rehearsal pacing.',
 
     shortcutNav: 'Next / Previous Slide',
+    shortcutHomeEnd: 'First / Last Slide',
     shortcutJump: 'Jump to Slide Number',
     shortcutBlackout: 'Toggle Blackout Curtain',
     shortcutWhiteout: 'Toggle Whiteout Curtain',
+    shortcutEscClear: 'Close Modal / Clear Curtain & Pointer Tool',
     shortcutFreeze: 'Freeze / Unfreeze Audience Display',
     shortcutLaser: 'Toggle Laser Pointer',
     shortcutPen: 'Toggle Freehand Pen (+ / - width)',
@@ -541,6 +569,18 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideRow2: '操作・強調',
     uiGuideNotes: 'ノート欄',
     uiGuideCloseHint: '画面クリックまたは Esc / I で閉じる',
+    uiGuideBlockDeckFiles: 'PDF 読み込み・サンプル・履歴・自動監視',
+    uiGuideBlockAudienceDisplay: '投影ディスプレイ選択・聴衆ウィンドウ起動/接続',
+    uiGuideBlockAppSettings: 'テーマ・言語・操作ガイド (I)・ヘルプ (?)',
+    uiGuideBlockSlideNav: 'スライド前後移動・番号ジャンプ',
+    uiGuideBlockSplitCrop: 'ノート分割クロップ・左右入替',
+    uiGuideBlockStageCurtain: '黒画面 (B / .)・白画面 (W)・画面固定 (F)',
+    uiGuideBlockPointerInk: 'レーザー (L)・ペン (D, 色/+/-)・スポットライト (S, [ / ])',
+    uiGuideBlockInkActions: '戻す・全消去 (C)・描線表示切替 (H)',
+    uiGuideBlockViewsGuard: 'フォーカスガード・時間分析 (R)・一覧 (G)・目次 (O)',
+    uiGuideBlockNotesFont: 'ノート文字サイズ (A- / A+)',
+    uiGuideBlockNotesTarget: 'スライド目標秒数',
+    uiGuideBlockNotesIo: 'ノート編集 (E)・取込・埋め込み読込・書出',
     quickGuideBtn: '使い方ガイド (?)',
     localeToggleTitle: '表示言語を切替 (JP / EN)',
     themeToLight: 'ライトモードへ切替',
@@ -652,9 +692,11 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
       'レーザー (L)、ペン (D)、スポットライト (S：クリックで固定・ホイールや [ ] で拡縮)、黒/白カーテン (B/W)、画面固定 (F)、分析モーダル (R) を使えます。',
 
     shortcutNav: '次のスライド / 前のスライド',
+    shortcutHomeEnd: '最初 / 最後のスライドへ移動',
     shortcutJump: '番号入力でスライドへジャンプ',
     shortcutBlackout: '黒画面カーテンの切替',
     shortcutWhiteout: '白画面カーテンの切替',
+    shortcutEscClear: 'モーダルを閉じる / カーテン・ポインター解除',
     shortcutFreeze: '聴衆画面の一時固定（手元だけ移動）',
     shortcutLaser: 'レーザーポインターの切替',
     shortcutPen: 'フリーハンドペンの切替（+ / - で太さ調整）',

@@ -40,6 +40,7 @@ export type SyncMessage =
     }
   | { type: 'NAVIGATE'; page: number; strokesForPage?: InkStroke[] }
   | { type: 'REQUEST_NAVIGATE'; delta: -1 | 1 }
+  | { type: 'REQUEST_ACTION'; action: 'first' | 'last' | 'toggle-blackout' | 'toggle-whiteout' }
   | { type: 'CROP_MODE'; cropMode: CropMode; swapSplitHalves: boolean }
   | { type: 'CURTAIN'; mode: CurtainMode }
   | { type: 'FREEZE'; frozen: boolean }

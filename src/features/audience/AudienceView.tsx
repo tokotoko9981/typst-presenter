@@ -25,11 +25,31 @@ function parseSessionIdFromHash(hash: string): string {
   return search.get('session')?.trim() || 'default';
 }
 
+const IDLE_CURSOR_MS = 2500;
+
+function checkIsFullscreen(): boolean {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const docWithWebkit = document as Document & { webkitFullscreenElement?: Element | null };
+  if (docWithWebkit.fullscreenElement || docWithWebkit.webkitFullscreenElement) {
+    return true;
+  }
+  if (isTauriRuntime() && window.screen) {
+    return (
+      window.innerWidth >= window.screen.width && window.innerHeight >= window.screen.height
+    );
+  }
+  return false;
+}
+
 export function AudienceView() {
   const { t } = useI18n();
   const [sessionId, setSessionId] = useState<string>(() =>
     parseSessionIdFromHash(window.location.hash),
   );
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => checkIsFullscreen());
+  const [cursorHidden, setCursorHidden] = useState<boolean>(false);
   const engineRef = useRef<PdfEngine | null>(null);
   const loadedDeckIdRef = useRef<string | null>(null);
   const inFlightDeckIdRef = useRef<string | null>(null);
@@ -124,10 +144,52 @@ export function AudienceView() {
 
   const requestFullscreen = useCallback(() => {
     if (isTauriRuntime()) {
-      void setAudienceWindowFullscreen(true);
+      void setAudienceWindowFullscreen(true).then((ok) => {
+        if (ok) setIsFullscreen(true);
+      });
       return;
     }
     document.documentElement.requestFullscreen?.().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(checkIsFullscreen());
+    };
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    window.addEventListener('resize', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+      window.removeEventListener('resize', syncFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleHide = () => {
+      setCursorHidden(false);
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        setCursorHidden(true);
+      }, IDLE_CURSOR_MS);
+    };
+
+    scheduleHide();
+    window.addEventListener('mousemove', scheduleHide);
+    window.addEventListener('mousedown', scheduleHide);
+    window.addEventListener('pointermove', scheduleHide);
+    window.addEventListener('touchstart', scheduleHide);
+
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      window.removeEventListener('mousemove', scheduleHide);
+      window.removeEventListener('mousedown', scheduleHide);
+      window.removeEventListener('pointermove', scheduleHide);
+      window.removeEventListener('touchstart', scheduleHide);
+    };
   }, []);
 
   useEffect(() => {
@@ -267,12 +329,33 @@ export function AudienceView() {
     bridge.start();
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
         requestFullscreen();
-      } else if (e.key === 'ArrowRight' || e.key === ' ') {
+      } else if (
+        e.key === 'ArrowRight' ||
+        e.key === 'PageDown' ||
+        e.key === 'ArrowDown' ||
+        e.key === ' '
+      ) {
+        e.preventDefault();
         bridge.post({ type: 'REQUEST_NAVIGATE', delta: 1 });
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'ArrowUp') {
+        e.preventDefault();
         bridge.post({ type: 'REQUEST_NAVIGATE', delta: -1 });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        bridge.post({ type: 'REQUEST_ACTION', action: 'first' });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        bridge.post({ type: 'REQUEST_ACTION', action: 'last' });
+      } else if (e.key === '.' || e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        bridge.post({ type: 'REQUEST_ACTION', action: 'toggle-blackout' });
+      } else if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        bridge.post({ type: 'REQUEST_ACTION', action: 'toggle-whiteout' });
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -290,9 +373,12 @@ export function AudienceView() {
   return (
     <main
       data-testid="audience-shell"
+      data-cursor-hidden={cursorHidden ? 'true' : 'false'}
       style={{ backgroundColor: '#000000' }}
       onDoubleClick={requestFullscreen}
-      className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-black text-slate-200"
+      className={`relative flex h-screen w-screen items-center justify-center overflow-hidden bg-black text-slate-200 ${
+        cursorHidden ? 'cursor-none' : ''
+      }`}
     >
       {deckId ? (
         <SlideStage
@@ -321,7 +407,7 @@ export function AudienceView() {
       )}
 
       {/* Fullscreen hint pill */}
-      {curtainMode === 'none' && (
+      {curtainMode === 'none' && !isFullscreen && (
         <button
           type="button"
           onClick={requestFullscreen}

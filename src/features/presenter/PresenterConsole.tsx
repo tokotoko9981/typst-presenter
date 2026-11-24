@@ -94,67 +94,11 @@ import { HelpModal, type HelpModalTab } from './HelpModal.tsx';
 import { NotesImportModal } from './NotesImportModal.tsx';
 import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
 import { UiGuideOverlay } from './UiGuideOverlay.tsx';
-
-function BlackoutScreenIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
-      <rect
-        x="1.5"
-        y="2.5"
-        width="13"
-        height="9"
-        rx="1.5"
-        fill="#020617"
-        stroke="currentColor"
-        strokeWidth="1.25"
-      />
-      <path
-        d="M5.5 13.5h5M8 11.5v2"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-      <path
-        d="M6.4 5h1.9a1.15 1.15 0 0 1 .4 2.22A1.2 1.2 0 0 1 8.4 9.5h-2V5Z"
-        fill="none"
-        stroke="#f8fafc"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function WhiteoutScreenIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" aria-hidden="true">
-      <rect
-        x="1.5"
-        y="2.5"
-        width="13"
-        height="9"
-        rx="1.5"
-        fill="#ffffff"
-        stroke="#334155"
-        strokeWidth="1.25"
-      />
-      <path
-        d="M5.5 13.5h5M8 11.5v2"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-      <path
-        d="M5 5.2l1.2 3.8 1.8-2.7 1.8 2.7L11 5.2"
-        fill="none"
-        stroke="#0f172a"
-        strokeWidth="1.15"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
+import { BlackoutScreenIcon, WhiteoutScreenIcon } from './components/CurtainIcons.tsx';
+import {
+  usePresenterShortcuts,
+  type PresenterModalKind,
+} from './hooks/usePresenterShortcuts.ts';
 
 function getOrCreateSessionId(): string {
   try {
@@ -231,8 +175,6 @@ export function PresenterConsole() {
   const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const sidecarFileInputRef = useRef<HTMLInputElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const digitBufferRef = useRef<string>('');
-  const digitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastStageHoverRef = useRef<NormalizedPoint | null>(null);
 
   if (!engineRef.current) {
@@ -308,9 +250,7 @@ export function PresenterConsole() {
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
 
   // Modals / Drawers state
-  const [activeModal, setActiveModal] = useState<
-    'none' | 'grid' | 'outline' | 'help' | 'stats' | 'notes-import' | 'ui-guide'
-  >('none');
+  const [activeModal, setActiveModal] = useState<PresenterModalKind>('none');
   const [helpInitialTab, setHelpInitialTab] = useState<HelpModalTab>('shortcuts');
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
 
@@ -428,6 +368,29 @@ export function PresenterConsole() {
           rehearsalTrackerRef.current.onPageChange(target, s.timerRunning);
           setCurrentPage(target);
           setJumpInputText(String(target));
+        }
+      } else if (msg.type === 'REQUEST_ACTION') {
+        const s = stateRef.current;
+        if (msg.action === 'first' && s.meta && s.currentPage !== 1) {
+          rehearsalTrackerRef.current.onPageChange(1, s.timerRunning);
+          setCurrentPage(1);
+          setJumpInputText('1');
+        } else if (msg.action === 'last' && s.meta && s.currentPage !== s.meta.numPages) {
+          rehearsalTrackerRef.current.onPageChange(s.meta.numPages, s.timerRunning);
+          setCurrentPage(s.meta.numPages);
+          setJumpInputText(String(s.meta.numPages));
+        } else if (msg.action === 'toggle-blackout') {
+          setCurtainMode((prev) => {
+            const next: CurtainMode = prev === 'black' ? 'none' : 'black';
+            syncBridgeRef.current?.post({ type: 'CURTAIN', mode: next });
+            return next;
+          });
+        } else if (msg.action === 'toggle-whiteout') {
+          setCurtainMode((prev) => {
+            const next: CurtainMode = prev === 'white' ? 'none' : 'white';
+            syncBridgeRef.current?.post({ type: 'CURTAIN', mode: next });
+            return next;
+          });
         }
       }
     });
@@ -1613,215 +1576,56 @@ export function PresenterConsole() {
     [meta, notesBundle, locale],
   );
 
+  const handleClearStageOverlay = useCallback(() => {
+    if (curtainMode !== 'none') {
+      setCurtainMode('none');
+      syncBridgeRef.current?.post({ type: 'CURTAIN', mode: 'none' });
+    }
+    if (pointerTool !== 'none') {
+      if (pointerTool === 'laser') {
+        setLaserPoint(null);
+        syncBridgeRef.current?.post({ type: 'LASER_MOVE', active: false, point: null });
+      } else if (pointerTool === 'spotlight') {
+        setSpotlightPoint(null);
+        syncBridgeRef.current?.post({
+          type: 'SPOTLIGHT_MOVE',
+          active: false,
+          point: null,
+          radius: spotlightRadius,
+        });
+      }
+      setPointerTool('none');
+    }
+  }, [curtainMode, pointerTool, spotlightRadius]);
+
+  const handleOpenStatsModal = useCallback(() => {
+    setNowTick(Date.now());
+    setActiveModal((prev) => (prev === 'stats' ? 'none' : 'stats'));
+  }, []);
+
   // Focus-safe global keyboard shortcuts
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const active = document.activeElement;
-      const inEditable =
-        active instanceof HTMLInputElement ||
-        active instanceof HTMLTextAreaElement ||
-        active instanceof HTMLSelectElement ||
-        (active instanceof HTMLElement && active.isContentEditable);
-
-      if (e.key === 'Escape') {
-        if (isEditingNotes) {
-          e.preventDefault();
-          void saveNotesEditor();
-          return;
-        }
-        if (activeModal !== 'none') {
-          e.preventDefault();
-          setActiveModal('none');
-          return;
-        }
-      }
-
-      if (inEditable || isEditingNotes) {
-        return;
-      }
-
-      if (e.ctrlKey || e.metaKey || e.altKey) {
-        return;
-      }
-
-      // Numeric direct slide jump buffer (e.g., '2' then 'Enter')
-      if (/^[0-9]$/.test(e.key)) {
-        digitBufferRef.current += e.key;
-        if (digitTimeoutRef.current) clearTimeout(digitTimeoutRef.current);
-        digitTimeoutRef.current = setTimeout(() => {
-          digitBufferRef.current = '';
-        }, 2000);
-        return;
-      }
-
-      if (e.key === 'Enter' && digitBufferRef.current.length > 0) {
-        e.preventDefault();
-        const target = Number.parseInt(digitBufferRef.current, 10);
-        digitBufferRef.current = '';
-        if (meta && target >= 1 && target <= meta.numPages) {
-          navigateToSlide(target);
-        }
-        return;
-      }
-
-      switch (e.key) {
-        case 'ArrowRight':
-        case 'PageDown':
-        case ' ': {
-          e.preventDefault();
-          if (meta && currentPage < meta.numPages) {
-            navigateToSlide(currentPage + 1);
-          }
-          break;
-        }
-        case 'ArrowLeft':
-        case 'PageUp': {
-          e.preventDefault();
-          if (meta && currentPage > 1) {
-            navigateToSlide(currentPage - 1);
-          }
-          break;
-        }
-        case 'b':
-        case 'B': {
-          e.preventDefault();
-          handleToggleCurtain('black');
-          break;
-        }
-        case 'w':
-        case 'W': {
-          e.preventDefault();
-          handleToggleCurtain('white');
-          break;
-        }
-        case 'f':
-        case 'F': {
-          e.preventDefault();
-          handleToggleFreeze();
-          break;
-        }
-        case 'l':
-        case 'L': {
-          e.preventDefault();
-          handleToggleTool('laser');
-          break;
-        }
-        case 'd':
-        case 'D': {
-          e.preventDefault();
-          handleToggleTool('pen');
-          break;
-        }
-        case 's':
-        case 'S': {
-          e.preventDefault();
-          handleToggleTool('spotlight');
-          break;
-        }
-        case 'c':
-        case 'C': {
-          e.preventDefault();
-          handleClearInk();
-          break;
-        }
-        case 'h':
-        case 'H': {
-          e.preventDefault();
-          handleToggleInkVisibility();
-          break;
-        }
-        case '[':
-        case '{':
-        case '「':
-        case '［': {
-          e.preventDefault();
-          handleAdjustSpotlightRadius(-0.04);
-          break;
-        }
-        case ']':
-        case '}':
-        case '」':
-        case '］': {
-          e.preventDefault();
-          handleAdjustSpotlightRadius(0.04);
-          break;
-        }
-        case '+':
-        case '=': {
-          e.preventDefault();
-          handleAdjustPenSize(0.004);
-          break;
-        }
-        case '-':
-        case '_': {
-          e.preventDefault();
-          handleAdjustPenSize(-0.004);
-          break;
-        }
-        case 'g':
-        case 'G':
-        case 'Tab': {
-          if (e.key === 'Tab' && !meta) return;
-          e.preventDefault();
-          setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'));
-          break;
-        }
-        case 'o':
-        case 'O': {
-          e.preventDefault();
-          setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'));
-          break;
-        }
-        case 'r':
-        case 'R': {
-          e.preventDefault();
-          if (meta) {
-            setNowTick(Date.now());
-            setActiveModal((prev) => (prev === 'stats' ? 'none' : 'stats'));
-          }
-          break;
-        }
-        case 'e':
-        case 'E': {
-          e.preventDefault();
-          if (meta) openNotesEditor();
-          break;
-        }
-        case '?': {
-          e.preventDefault();
-          setHelpInitialTab('shortcuts');
-          setActiveModal((prev) => (prev === 'help' ? 'none' : 'help'));
-          break;
-        }
-        case 'i':
-        case 'I': {
-          e.preventDefault();
-          setActiveModal((prev) => (prev === 'ui-guide' ? 'none' : 'ui-guide'));
-          break;
-        }
-        default:
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    meta,
+  usePresenterShortcuts({
+    numPages: meta?.numPages ?? null,
     currentPage,
     isEditingNotes,
     activeModal,
-    navigateToSlide,
-    saveNotesEditor,
-    openNotesEditor,
-    handleToggleCurtain,
-    handleToggleFreeze,
-    handleToggleTool,
-    handleClearInk,
-    handleToggleInkVisibility,
-    handleAdjustSpotlightRadius,
-    handleAdjustPenSize,
-  ]);
+    curtainMode,
+    pointerTool,
+    onNavigateToSlide: navigateToSlide,
+    onSaveNotesEditor: saveNotesEditor,
+    onSetActiveModal: setActiveModal,
+    onSetHelpInitialTab: setHelpInitialTab,
+    onOpenStatsModal: handleOpenStatsModal,
+    onOpenNotesEditor: openNotesEditor,
+    onToggleCurtain: handleToggleCurtain,
+    onToggleFreeze: handleToggleFreeze,
+    onToggleTool: handleToggleTool,
+    onClearStageOverlay: handleClearStageOverlay,
+    onClearInk: handleClearInk,
+    onToggleInkVisibility: handleToggleInkVisibility,
+    onAdjustSpotlightRadius: handleAdjustSpotlightRadius,
+    onAdjustPenSize: handleAdjustPenSize,
+  });
 
   const timerSnapshot = useMemo(
     () =>
@@ -2006,6 +1810,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row1"
+              data-coachmark-block="deck-files"
               onClick={() => pdfFileInputRef.current?.click()}
               title={t.openPdf}
               aria-label={t.openPdf}
@@ -2018,6 +1823,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row1"
+              data-coachmark-block="deck-files"
               onClick={handleLoadSampleDeck}
               title={t.loadSampleDeck}
               aria-label={t.loadSampleDeck}
@@ -2032,6 +1838,7 @@ export function PresenterConsole() {
                 type="button"
                 data-testid="close-deck-button"
                 data-coachmark-group="row1"
+                data-coachmark-block="deck-files"
                 title={t.recentDecksTooltip}
                 aria-label={t.recentDecksTooltip}
                 onClick={() => void handleCloseDeck()}
@@ -2047,6 +1854,7 @@ export function PresenterConsole() {
                 type="button"
                 data-testid="watch-pdf-button"
                 data-coachmark-group="row1"
+                data-coachmark-block="deck-files"
                 aria-pressed={pdfWatchStatus.active}
                 title={
                   pdfWatchStatus.active
@@ -2072,6 +1880,7 @@ export function PresenterConsole() {
               <select
                 data-testid="monitor-select"
                 data-coachmark-group="row1"
+                data-coachmark-block="audience-display"
                 title={t.monitorSelectTooltip}
                 aria-label="Target display"
                 value={selectedMonitorIndex !== undefined ? String(selectedMonitorIndex) : ''}
@@ -2098,6 +1907,7 @@ export function PresenterConsole() {
                 type="button"
                 data-testid="refresh-monitors-button"
                 data-coachmark-group="row1"
+                data-coachmark-block="audience-display"
                 aria-label={t.refreshDisplaysAria}
                 title={t.refreshDisplaysAria}
                 onClick={() => void refreshMonitors()}
@@ -2110,6 +1920,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row1"
+              data-coachmark-block="audience-display"
               title={t.launchAudienceWindow}
               aria-label={t.launchAudienceWindow}
               onClick={() => void handleLaunchAudienceWindow()}
@@ -2122,6 +1933,7 @@ export function PresenterConsole() {
             <span
               data-testid="audience-status"
               data-coachmark-group="row1"
+              data-coachmark-block="audience-display"
               title={t.audienceStatusTooltip}
               className={`inline-flex h-7 w-[92px] shrink-0 items-center justify-center gap-1 rounded border px-1.5 text-[11px] font-medium ${
                 audienceConnected
@@ -2147,6 +1959,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="theme-toggle"
               data-coachmark-group="row1"
+              data-coachmark-block="app-settings"
               aria-label={theme === 'dark' ? t.themeToLight : t.themeToDark}
               title={theme === 'dark' ? t.themeToLight : t.themeToDark}
               onClick={toggleTheme}
@@ -2163,6 +1976,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="locale-toggle"
               data-coachmark-group="row1"
+              data-coachmark-block="app-settings"
               title={t.localeToggleTitle}
               aria-label={t.localeToggleTitle}
               onClick={toggleLocale}
@@ -2181,6 +1995,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="ui-guide-overlay-toggle"
               data-coachmark-group="row1"
+              data-coachmark-block="app-settings"
               aria-label={t.uiGuideBtn}
               title={t.uiGuideBtn}
               aria-pressed={activeModal === 'ui-guide'}
@@ -2197,6 +2012,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row1"
+              data-coachmark-block="app-settings"
               aria-label={t.helpBtn}
               title={t.helpBtn}
               onClick={() => {
@@ -2219,6 +2035,7 @@ export function PresenterConsole() {
                 <button
                   type="button"
                   data-coachmark-group="row2"
+                  data-coachmark-block="slide-nav"
                   disabled={currentPage <= 1}
                   aria-label={t.prevSlideTooltip}
                   title={t.prevSlideTooltip}
@@ -2231,6 +2048,7 @@ export function PresenterConsole() {
                 <div
                   data-testid="slide-counter"
                   data-coachmark-group="row2"
+                  data-coachmark-block="slide-nav"
                   title={t.jumpInputTooltip}
                   className="flex h-7 items-center gap-1 rounded border border-slate-200 bg-slate-50 px-1.5 font-mono text-xs text-slate-700 dark:border-slate-700/70 dark:bg-slate-950 dark:text-slate-200"
                 >
@@ -2260,6 +2078,7 @@ export function PresenterConsole() {
                 <button
                   type="button"
                   data-coachmark-group="row2"
+                  data-coachmark-block="slide-nav"
                   disabled={currentPage >= meta.numPages}
                   aria-label={t.nextSlideTooltip}
                   title={t.nextSlideTooltip}
@@ -2278,6 +2097,7 @@ export function PresenterConsole() {
               aria-label="Crop mode"
               data-testid="crop-mode-select"
               data-coachmark-group="row2"
+              data-coachmark-block="split-crop"
               title={t.cropSelectTooltip}
               value={cropMode}
               onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
@@ -2291,6 +2111,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="split-crop"
               aria-label={t.swapHalves}
               title={t.swapHalves}
               disabled={cropMode === 'full'}
@@ -2308,6 +2129,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="stage-curtain"
               aria-label={t.blackoutBtn}
               title={t.blackoutBtn}
               aria-pressed={curtainMode === 'black'}
@@ -2324,6 +2146,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="stage-curtain"
               aria-label={t.whiteoutBtn}
               title={t.whiteoutBtn}
               aria-pressed={curtainMode === 'white'}
@@ -2340,6 +2163,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="stage-curtain"
               aria-label={t.freezeBtn}
               title={t.freezeBtn}
               aria-pressed={frozen}
@@ -2361,6 +2185,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="pointer-ink"
               aria-label={t.laserBtn}
               title={t.laserBtn}
               aria-pressed={pointerTool === 'laser'}
@@ -2379,6 +2204,7 @@ export function PresenterConsole() {
               <button
                 type="button"
                 data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
                 aria-label={t.penBtn}
                 title={t.penBtn}
                 aria-pressed={pointerTool === 'pen'}
@@ -2395,6 +2221,7 @@ export function PresenterConsole() {
               <div
                 role="group"
                 data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
                 title={t.inkColorsLabel}
                 aria-label="Ink colors"
                 className="flex items-center gap-1 px-0.5"
@@ -2429,6 +2256,7 @@ export function PresenterConsole() {
               <div
                 role="group"
                 data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
                 title={t.penWidthLabel}
                 aria-label="Pen width"
                 className="flex h-5 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700/80 dark:bg-slate-800"
@@ -2474,6 +2302,7 @@ export function PresenterConsole() {
               <button
                 type="button"
                 data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
                 aria-label={t.spotlightBtn}
                 title={t.spotlightBtn}
                 aria-pressed={pointerTool === 'spotlight'}
@@ -2490,6 +2319,7 @@ export function PresenterConsole() {
               <div
                 role="group"
                 data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
                 title={t.spotlightSizeLabel}
                 aria-label="Spotlight radius"
                 className="flex h-5 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-white dark:border-slate-700/80 dark:bg-slate-800"
@@ -2527,6 +2357,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="ink-actions"
               aria-label={t.undoBtn}
               title={t.undoBtn}
               onClick={handleUndoStroke}
@@ -2538,6 +2369,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="ink-actions"
               aria-label={t.clearInkBtn}
               title={t.clearInkBtn}
               onClick={handleClearInk}
@@ -2550,6 +2382,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="toggle-ink-visibility"
               data-coachmark-group="row2"
+              data-coachmark-block="ink-actions"
               aria-label={t.inkBtn}
               title={t.inkBtn}
               aria-pressed={inkVisible}
@@ -2574,6 +2407,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="guard-toggle"
               data-coachmark-group="row2"
+              data-coachmark-block="views-guard"
               aria-label={t.guardBtn}
               title={t.guardBtn}
               aria-pressed={guardEnabled}
@@ -2595,6 +2429,7 @@ export function PresenterConsole() {
               type="button"
               data-testid="open-stats-button"
               data-coachmark-group="row2"
+              data-coachmark-block="views-guard"
               aria-label={t.statsBtn}
               title={t.statsBtn}
               disabled={!meta}
@@ -2611,6 +2446,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="views-guard"
               aria-label={t.gridAria}
               title={t.gridBtn}
               onClick={() => setActiveModal((prev) => (prev === 'grid' ? 'none' : 'grid'))}
@@ -2622,6 +2458,7 @@ export function PresenterConsole() {
             <button
               type="button"
               data-coachmark-group="row2"
+              data-coachmark-block="views-guard"
               aria-label={t.outlineBtn}
               title={t.outlineBtn}
               onClick={() => setActiveModal((prev) => (prev === 'outline' ? 'none' : 'outline'))}
@@ -3178,6 +3015,7 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     data-coachmark-group="notes"
+                    data-coachmark-block="notes-font"
                     aria-label={t.fontDecreaseTooltip}
                     title={t.fontDecreaseTooltip}
                     onClick={() => void handleAdjustFontSize(-2)}
@@ -3188,6 +3026,7 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     data-coachmark-group="notes"
+                    data-coachmark-block="notes-font"
                     aria-label={t.fontIncreaseTooltip}
                     title={t.fontIncreaseTooltip}
                     onClick={() => void handleAdjustFontSize(2)}
@@ -3197,6 +3036,7 @@ export function PresenterConsole() {
                   </button>
                   <label
                     data-coachmark-group="notes"
+                    data-coachmark-block="notes-target"
                     title={t.slideTargetTooltip}
                     className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400"
                   >
@@ -3229,6 +3069,7 @@ export function PresenterConsole() {
                     <button
                       type="button"
                       data-coachmark-group="notes"
+                      data-coachmark-block="notes-io"
                       aria-label={t.editNotesBtn}
                       title={t.editNotesBtn}
                       onClick={openNotesEditor}
@@ -3240,6 +3081,7 @@ export function PresenterConsole() {
                     <button
                       type="button"
                       data-coachmark-group="notes"
+                      data-coachmark-block="notes-io"
                       aria-label={t.saveNotesBtn}
                       title={t.saveNotesBtn}
                       onClick={() => void saveNotesEditor()}
@@ -3253,6 +3095,7 @@ export function PresenterConsole() {
                     type="button"
                     data-testid="open-notes-import-button"
                     data-coachmark-group="notes"
+                    data-coachmark-block="notes-io"
                     aria-label={t.importNotesBtn}
                     title={t.importNotesBtn}
                     onClick={() => setActiveModal('notes-import')}
@@ -3264,6 +3107,7 @@ export function PresenterConsole() {
                   <button
                     type="button"
                     data-coachmark-group="notes"
+                    data-coachmark-block="notes-io"
                     aria-label={t.importEmbeddedBtn}
                     title={t.importEmbeddedBtn}
                     onClick={() => void handleImportEmbeddedNotes()}
@@ -3276,6 +3120,7 @@ export function PresenterConsole() {
                     <button
                       type="button"
                       data-coachmark-group="notes"
+                      data-coachmark-block="notes-io"
                       aria-haspopup="menu"
                       aria-expanded={exportMenuOpen}
                       aria-label={t.exportNotesBtn}

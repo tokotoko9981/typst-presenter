@@ -8,6 +8,18 @@ export interface NormalizedPoint {
   y: number; // [0..1] within rendered slide rect
 }
 
+export interface ZoomState {
+  scale: number; // [1..4]
+  panX: number; // normalized pan offset in [-((scale-1)/2)..((scale-1)/2)]
+  panY: number; // normalized pan offset in [-((scale-1)/2)..((scale-1)/2)]
+}
+
+export interface QrOverlayState {
+  visible: boolean;
+  url: string;
+  label?: string;
+}
+
 export interface InkStroke {
   id: string;
   page: number;
@@ -35,8 +47,12 @@ export type SyncMessage =
       inkVisible: boolean;
       pointerTool: PointerTool;
       laserPoint: NormalizedPoint | null;
+      laserColor?: string;
       spotlightPoint: NormalizedPoint | null;
       spotlightRadius: number;
+      zoomState?: ZoomState;
+      qrOverlay?: QrOverlayState;
+      audienceProgressBar?: boolean;
     }
   | { type: 'NAVIGATE'; page: number; strokesForPage?: InkStroke[] }
   | { type: 'REQUEST_NAVIGATE'; delta: -1 | 1 }
@@ -44,8 +60,11 @@ export type SyncMessage =
   | { type: 'CROP_MODE'; cropMode: CropMode; swapSplitHalves: boolean }
   | { type: 'CURTAIN'; mode: CurtainMode }
   | { type: 'FREEZE'; frozen: boolean }
-  | { type: 'LASER_MOVE'; active: boolean; point: NormalizedPoint | null }
+  | { type: 'LASER_MOVE'; active: boolean; point: NormalizedPoint | null; color?: string }
   | { type: 'SPOTLIGHT_MOVE'; active: boolean; point: NormalizedPoint | null; radius: number }
+  | { type: 'ZOOM_STATE'; zoom: ZoomState }
+  | { type: 'QR_OVERLAY'; overlay: QrOverlayState }
+  | { type: 'PROGRESS_BAR'; visible: boolean }
   | { type: 'STROKE_ADD'; stroke: InkStroke }
   | { type: 'STROKE_UPDATE'; stroke: InkStroke }
   | { type: 'STROKE_UNDO'; page: number }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeftRight,
   BarChart3,
+  Bell,
+  BellOff,
   BookOpen,
   Check,
   ChevronDown,
@@ -24,6 +26,7 @@ import {
   PenTool,
   Plus,
   Presentation,
+  QrCode,
   Radio,
   RefreshCw,
   Shield,
@@ -34,10 +37,12 @@ import {
   Trash2,
   Undo2,
   Upload,
+  ZoomIn,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { SlideStage } from '../../components/SlideStage.tsx';
+import { LASER_COLOR_SWATCHES, SlideStage } from '../../components/SlideStage.tsx';
 import { ThumbnailCanvas } from '../../components/ThumbnailCanvas.tsx';
+import { clampChimeVolume } from '../../core/audio/ChimeEngine.ts';
 import {
   FileWatchService,
   isFileSystemAccessSupported,
@@ -77,8 +82,11 @@ import type {
   InkStroke,
   NormalizedPoint,
   PointerTool,
+  QrOverlayState,
   SyncMessage,
+  ZoomState,
 } from '../../core/sync/types.ts';
+import { DEFAULT_ZOOM_STATE, isZoomed, zoomAtPoint } from '../../core/zoom/zoomMath.ts';
 import {
   exportRehearsalReportCsv,
   exportRehearsalReportMarkdown,
@@ -95,6 +103,8 @@ import { NotesImportModal } from './NotesImportModal.tsx';
 import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
 import { UiGuideOverlay } from './UiGuideOverlay.tsx';
 import { BlackoutScreenIcon, WhiteoutScreenIcon } from './components/CurtainIcons.tsx';
+import { QrOverlayModal } from './components/QrOverlayModal.tsx';
+import { useChimeAlerts } from './hooks/useChimeAlerts.ts';
 import {
   usePresenterShortcuts,
   type PresenterModalKind,
@@ -175,6 +185,8 @@ export function PresenterConsole() {
   const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
   const sidecarFileInputRef = useRef<HTMLInputElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const laserMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const laserPopoverRef = useRef<HTMLDivElement | null>(null);
   const lastStageHoverRef = useRef<NormalizedPoint | null>(null);
 
   if (!engineRef.current) {
@@ -212,6 +224,10 @@ export function PresenterConsole() {
 
   // Pointer & Ink annotations state
   const [pointerTool, setPointerTool] = useState<PointerTool>('none');
+  const [laserColor, setLaserColor] = useState<string>(DEFAULT_PREFS.laserColor);
+  const [laserMenuAnchor, setLaserMenuAnchor] = useState<{ top: number; left: number } | null>(
+    null,
+  );
   const [penColor, setPenColor] = useState<string>(DEFAULT_PREFS.penColor);
   const [penWidth, setPenWidth] = useState<number>(DEFAULT_PREFS.penWidth);
   const [laserPoint, setLaserPoint] = useState<NormalizedPoint | null>(null);
@@ -219,6 +235,19 @@ export function PresenterConsole() {
   const [spotlightRadius, setSpotlightRadius] = useState<number>(DEFAULT_PREFS.spotlightRadius);
   const [strokesByPage, setStrokesByPage] = useState<Record<number, InkStroke[]>>({});
   const [inkVisible, setInkVisible] = useState<boolean>(true);
+
+  // Phase 2: Zoom/Pan, Q&A QR, Audience Progress Bar & Chime state
+  const [zoomMode, setZoomMode] = useState<boolean>(false);
+  const [zoomState, setZoomState] = useState<ZoomState>(DEFAULT_ZOOM_STATE);
+  const [qrOverlay, setQrOverlay] = useState<QrOverlayState>({
+    visible: false,
+    url: '',
+    label: '',
+  });
+  const [audienceProgressBar, setAudienceProgressBar] = useState<boolean>(false);
+  const [chimeEnabled, setChimeEnabled] = useState<boolean>(false);
+  const [chimeVolume, setChimeVolume] = useState<number>(0.7);
+  const [chimeResetToken, setChimeResetToken] = useState<number>(0);
 
   // Notes state
   const [notesBundle, setNotesBundle] = useState<DeckNotesBundle | null>(null);
@@ -274,6 +303,31 @@ export function PresenterConsole() {
     };
   }, [exportMenuOpen]);
 
+  useEffect(() => {
+    if (!laserMenuAnchor) return;
+    const handleOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        laserPopoverRef.current?.contains(target) ||
+        laserMenuBtnRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setLaserMenuAnchor(null);
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLaserMenuAnchor(null);
+      }
+    };
+    window.addEventListener('mousedown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      window.removeEventListener('mousedown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [laserMenuAnchor]);
+
   // Keep latest state in refs for async / SyncBridge / FileWatch callbacks
   const notesBundleRef = useRef<DeckNotesBundle | null>(notesBundle);
   notesBundleRef.current = notesBundle;
@@ -289,9 +343,13 @@ export function PresenterConsole() {
     strokesByPage,
     inkVisible,
     pointerTool,
+    laserColor,
     laserPoint,
     spotlightPoint,
     spotlightRadius,
+    zoomState,
+    qrOverlay,
+    audienceProgressBar,
     timerRunning,
   });
   stateRef.current = {
@@ -305,9 +363,13 @@ export function PresenterConsole() {
     strokesByPage,
     inkVisible,
     pointerTool,
+    laserColor,
     laserPoint,
     spotlightPoint,
     spotlightRadius,
+    zoomState,
+    qrOverlay,
+    audienceProgressBar,
     timerRunning,
   };
 
@@ -329,9 +391,13 @@ export function PresenterConsole() {
         strokesForPage: pageStrokes,
         inkVisible: s.inkVisible,
         pointerTool: s.pointerTool,
+        laserColor: s.laserColor,
         laserPoint: s.laserPoint,
         spotlightPoint: s.spotlightPoint,
         spotlightRadius: s.spotlightRadius,
+        zoomState: s.zoomState,
+        qrOverlay: s.qrOverlay,
+        audienceProgressBar: s.audienceProgressBar,
       });
     }
     void storageService.saveSessionSnapshot({
@@ -344,6 +410,7 @@ export function PresenterConsole() {
       swapSplitHalves: s.swapSplitHalves,
       curtainMode: s.curtainMode,
       frozen: s.frozen,
+      audienceProgressBar: s.audienceProgressBar,
       updatedAt: Date.now(),
     });
   }, [sessionId]);
@@ -368,6 +435,9 @@ export function PresenterConsole() {
           rehearsalTrackerRef.current.onPageChange(target, s.timerRunning);
           setCurrentPage(target);
           setJumpInputText(String(target));
+          setZoomMode(false);
+          setZoomState(DEFAULT_ZOOM_STATE);
+          syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
         }
       } else if (msg.type === 'REQUEST_ACTION') {
         const s = stateRef.current;
@@ -375,10 +445,16 @@ export function PresenterConsole() {
           rehearsalTrackerRef.current.onPageChange(1, s.timerRunning);
           setCurrentPage(1);
           setJumpInputText('1');
+          setZoomMode(false);
+          setZoomState(DEFAULT_ZOOM_STATE);
+          syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
         } else if (msg.action === 'last' && s.meta && s.currentPage !== s.meta.numPages) {
           rehearsalTrackerRef.current.onPageChange(s.meta.numPages, s.timerRunning);
           setCurrentPage(s.meta.numPages);
           setJumpInputText(String(s.meta.numPages));
+          setZoomMode(false);
+          setZoomState(DEFAULT_ZOOM_STATE);
+          syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
         } else if (msg.action === 'toggle-blackout') {
           setCurtainMode((prev) => {
             const next: CurtainMode = prev === 'black' ? 'none' : 'black';
@@ -416,6 +492,8 @@ export function PresenterConsole() {
     curtainMode,
     frozen,
     inkVisible,
+    laserColor,
+    audienceProgressBar,
     broadcastStateSnapshot,
   ]);
 
@@ -470,9 +548,13 @@ export function PresenterConsole() {
       setLastMinutesInputText(String(prefs.lastMinutesWarning));
       setEndTimeHHMM(prefs.endTimeHHMM || '');
       setAutoStartTimerOnFirstNav(Boolean(prefs.autoStartTimerOnFirstNav));
+      setLaserColor(prefs.laserColor || DEFAULT_PREFS.laserColor);
       setPenColor(prefs.penColor || DEFAULT_PREFS.penColor);
       setPenWidth(clampPenWidth(prefs.penWidth));
       setSpotlightRadius(clampSpotlightRadius(prefs.spotlightRadius));
+      setChimeEnabled(Boolean(prefs.chimeEnabled));
+      setChimeVolume(clampChimeVolume(prefs.chimeVolume ?? DEFAULT_PREFS.chimeVolume ?? 0.7));
+      setAudienceProgressBar(Boolean(prefs.audienceProgressBar));
 
       const decks = await storageService.listDecks();
       if (!mounted) return;
@@ -514,6 +596,13 @@ export function PresenterConsole() {
           await storageService.saveNotes(activeNotes);
         }
         setNotesBundle(activeNotes);
+        if (activeNotes.qrUrl) {
+          setQrOverlay({
+            visible: false,
+            url: activeNotes.qrUrl,
+            label: activeNotes.qrLabel ?? '',
+          });
+        }
 
         const derivedMin = deriveDurationMinutesFromSlides(activeNotes.slides);
         if (
@@ -593,6 +682,7 @@ export function PresenterConsole() {
     setLastResumeMs(null);
     setSlideAccumulatedMs(0);
     setSlideLastResumeMs(null);
+    setChimeResetToken((n) => n + 1);
   }, []);
 
   // Navigate to a specific slide (1-based)
@@ -619,6 +709,8 @@ export function PresenterConsole() {
 
       setCurrentPage(clamped);
       setJumpInputText(String(clamped));
+      setZoomMode(false);
+      setZoomState(DEFAULT_ZOOM_STATE);
 
       void storageService.updateDeckState(meta.deckId, { currentPage: clamped });
 
@@ -628,6 +720,7 @@ export function PresenterConsole() {
           page: clamped,
           strokesForPage: strokesByPage[clamped] ?? [],
         });
+        syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
       }
     },
     [meta, timerRunning, autoStartTimerOnFirstNav, currentPage, frozen, strokesByPage],
@@ -704,11 +797,20 @@ export function PresenterConsole() {
         globalTargetSeconds: nextDuration * 60,
         lastMinutesWarning: nextWarning,
         ...(nextEndTime ? { endTimeHHMM: nextEndTime } : {}),
+        ...(parsed.qrUrl ? { qrUrl: parsed.qrUrl } : {}),
+        ...(parsed.qrLabel ? { qrLabel: parsed.qrLabel } : {}),
         noteFontSizePx: nextFont,
         slides: parsed.slides,
       };
       setNotesBundle(updatedBundle);
       await storageService.saveNotes(updatedBundle);
+      if (parsed.qrUrl) {
+        setQrOverlay((prev) => ({
+          visible: prev.visible,
+          url: parsed.qrUrl!,
+          label: parsed.qrLabel ?? prev.label ?? '',
+        }));
+      }
 
       if (slideNums.length > 0) {
         const maxSlideNum = Math.max(...slideNums);
@@ -759,6 +861,8 @@ export function PresenterConsole() {
         setSplitBannerDismissed(false);
         setStrokesByPage({});
         setIsEditingNotes(false);
+        setZoomMode(false);
+        setZoomState(DEFAULT_ZOOM_STATE);
         rehearsalTrackerRef.current.reset(1);
 
         await storageService.saveDeck({
@@ -837,6 +941,13 @@ export function PresenterConsole() {
             setNoteFontSizePx(clampedFont);
           }
           setNotesBundle(bundle);
+          if (bundle.qrUrl) {
+            setQrOverlay({
+              visible: false,
+              url: bundle.qrUrl,
+              label: bundle.qrLabel ?? '',
+            });
+          }
         }
 
         syncBridgeRef.current?.post({
@@ -1062,6 +1173,13 @@ export function PresenterConsole() {
           await storageService.saveNotes(activeNotes);
         }
         setNotesBundle(activeNotes);
+        if (activeNotes.qrUrl) {
+          setQrOverlay({
+            visible: false,
+            url: activeNotes.qrUrl,
+            label: activeNotes.qrLabel ?? '',
+          });
+        }
 
         const derivedMin = deriveDurationMinutesFromSlides(activeNotes.slides);
         const targetMin =
@@ -1313,10 +1431,16 @@ export function PresenterConsole() {
             type: 'LASER_MOVE',
             active: initialPt !== null,
             point: initialPt,
+            color: laserColor,
           });
         } else if (prev === 'laser') {
           setLaserPoint(null);
-          syncBridgeRef.current?.post({ type: 'LASER_MOVE', active: false, point: null });
+          syncBridgeRef.current?.post({
+            type: 'LASER_MOVE',
+            active: false,
+            point: null,
+            color: laserColor,
+          });
         }
 
         if (next === 'spotlight') {
@@ -1340,8 +1464,63 @@ export function PresenterConsole() {
         return next;
       });
     },
-    [spotlightPoint, spotlightRadius],
+    [spotlightPoint, spotlightRadius, laserColor],
   );
+
+  const handleSelectLaserColor = useCallback((color: string) => {
+    setLaserColor(color);
+    setLaserMenuAnchor(null);
+    void storageService.savePrefs({ laserColor: color });
+    const s = stateRef.current;
+    syncBridgeRef.current?.post({
+      type: 'LASER_MOVE',
+      active: s.pointerTool === 'laser' && s.laserPoint !== null,
+      point: s.pointerTool === 'laser' ? s.laserPoint : null,
+      color,
+    });
+  }, []);
+
+  const handleZoomChange = useCallback((nextZoom: ZoomState) => {
+    setZoomState(nextZoom);
+    syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: nextZoom });
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setZoomMode(false);
+    setZoomState(DEFAULT_ZOOM_STATE);
+    syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
+  }, []);
+
+  const handleToggleZoomMode = useCallback(() => {
+    setZoomMode((prev) => {
+      const next = !prev;
+      if (!next && isZoomed(stateRef.current.zoomState)) {
+        setZoomState(DEFAULT_ZOOM_STATE);
+        syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleAudienceProgressBar = useCallback(() => {
+    setAudienceProgressBar((prev) => {
+      const next = !prev;
+      void storageService.savePrefs({ audienceProgressBar: next });
+      syncBridgeRef.current?.post({ type: 'PROGRESS_BAR', visible: next });
+      return next;
+    });
+  }, []);
+
+  const handleToggleQrOnAudience = useCallback(() => {
+    setQrOverlay((prev) => {
+      const next: QrOverlayState = {
+        ...prev,
+        visible: !prev.visible,
+      };
+      syncBridgeRef.current?.post({ type: 'QR_OVERLAY', overlay: next });
+      return next;
+    });
+  }, []);
 
   const handleAdjustPenSize = useCallback((delta: number) => {
     setPenWidth((prev) => {
@@ -1584,7 +1763,12 @@ export function PresenterConsole() {
     if (pointerTool !== 'none') {
       if (pointerTool === 'laser') {
         setLaserPoint(null);
-        syncBridgeRef.current?.post({ type: 'LASER_MOVE', active: false, point: null });
+        syncBridgeRef.current?.post({
+          type: 'LASER_MOVE',
+          active: false,
+          point: null,
+          color: laserColor,
+        });
       } else if (pointerTool === 'spotlight') {
         setSpotlightPoint(null);
         syncBridgeRef.current?.post({
@@ -1596,7 +1780,12 @@ export function PresenterConsole() {
       }
       setPointerTool('none');
     }
-  }, [curtainMode, pointerTool, spotlightRadius]);
+    if (zoomMode || isZoomed(zoomState)) {
+      setZoomMode(false);
+      setZoomState(DEFAULT_ZOOM_STATE);
+      syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
+    }
+  }, [curtainMode, pointerTool, spotlightRadius, laserColor, zoomMode, zoomState]);
 
   const handleOpenStatsModal = useCallback(() => {
     setNowTick(Date.now());
@@ -1611,6 +1800,8 @@ export function PresenterConsole() {
     activeModal,
     curtainMode,
     pointerTool,
+    zoomMode,
+    zoomScale: zoomState.scale,
     onNavigateToSlide: navigateToSlide,
     onSaveNotesEditor: saveNotesEditor,
     onSetActiveModal: setActiveModal,
@@ -1620,6 +1811,8 @@ export function PresenterConsole() {
     onToggleCurtain: handleToggleCurtain,
     onToggleFreeze: handleToggleFreeze,
     onToggleTool: handleToggleTool,
+    onToggleZoomMode: handleToggleZoomMode,
+    onResetZoom: handleResetZoom,
     onClearStageOverlay: handleClearStageOverlay,
     onClearInk: handleClearInk,
     onToggleInkVisibility: handleToggleInkVisibility,
@@ -1654,6 +1847,17 @@ export function PresenterConsole() {
       nowTick,
     ],
   );
+
+  const { ringManual, lastBell } = useChimeAlerts({
+    enabled: chimeEnabled,
+    volume: chimeVolume,
+    running: timerRunning,
+    remainingMs: timerSnapshot.remainingMs,
+    lastMinutesWarning,
+    countdownMinutes,
+    endTimeHHMM,
+    resetToken: chimeResetToken,
+  });
 
   const targetSecondsByPage = useMemo(() => {
     const targets: Record<number, number | undefined> = {};
@@ -1888,7 +2092,7 @@ export function PresenterConsole() {
                   const raw = e.target.value;
                   setSelectedMonitorIndex(raw === '' ? undefined : Number.parseInt(raw, 10));
                 }}
-                className="h-7 w-[128px] truncate rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="h-7 w-[116px] truncate rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
               >
                 {monitors.length === 0 ? (
                   <option value="">{t.defaultDisplay}</option>
@@ -1949,6 +2153,61 @@ export function PresenterConsole() {
               />
               <span>{audienceConnected ? t.audienceConnected : t.audienceDisconnected}</span>
             </span>
+
+            <button
+              type="button"
+              data-testid="qr-overlay-button"
+              data-coachmark-group="row1"
+              data-coachmark-block="audience-display"
+              aria-label={t.qrBtn}
+              title={t.qrBtn}
+              aria-pressed={qrOverlay.visible}
+              onClick={() => setActiveModal((prev) => (prev === 'qr' ? 'none' : 'qr'))}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                qrOverlay.visible
+                  ? 'border-blue-500 bg-blue-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
+              }`}
+            >
+              <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              data-testid="audience-progress-toggle"
+              data-coachmark-group="row1"
+              data-coachmark-block="audience-display"
+              aria-label={t.progressBarToggle}
+              title={t.progressBarToggle}
+              aria-pressed={audienceProgressBar}
+              onClick={handleToggleAudienceProgressBar}
+              className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
+                audienceProgressBar
+                  ? 'border-emerald-500 bg-emerald-600 text-white'
+                  : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
+              }`}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                aria-hidden="true"
+              >
+                <rect
+                  x="1.5"
+                  y="2.5"
+                  width="11"
+                  height="7.5"
+                  rx="1"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  opacity="0.7"
+                />
+                <rect x="1.5" y="11.5" width="11" height="1.5" rx="0.75" fill="currentColor" opacity="0.3" />
+                <rect x="1.5" y="11.5" width="7" height="1.5" rx="0.75" fill="currentColor" />
+              </svg>
+            </button>
 
             <div
               aria-hidden="true"
@@ -2029,7 +2288,7 @@ export function PresenterConsole() {
         {/* Row 2: Slide Navigation, Stage Controls, Annotation Tools & View Modals */}
         <div className="flex h-9 flex-nowrap items-center justify-between gap-1.5 overflow-x-auto overflow-y-hidden px-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Left: Slide navigation & counter */}
-          <div className="flex h-7 min-w-[132px] shrink-0 flex-nowrap items-center gap-1">
+          <div className="flex h-7 min-w-[124px] shrink-0 flex-nowrap items-center gap-1">
             {meta && (
               <>
                 <button
@@ -2101,7 +2360,7 @@ export function PresenterConsole() {
               title={t.cropSelectTooltip}
               value={cropMode}
               onChange={(e) => handleSelectCropMode(e.target.value as CropMode)}
-              className="h-7 w-[100px] rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              className="h-7 w-[92px] rounded border border-slate-300 bg-white px-1.5 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
             >
               <option value="full">{t.cropFull}</option>
               <option value="split-horizontal">{t.cropSplitHorizontal}</option>
@@ -2182,21 +2441,73 @@ export function PresenterConsole() {
               className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700"
             />
 
+            <div className="flex h-7 shrink-0 items-center overflow-hidden rounded border border-slate-200 bg-slate-100 dark:border-slate-700/70 dark:bg-slate-800">
+              <button
+                type="button"
+                data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
+                aria-label={t.laserBtn}
+                title={t.laserBtn}
+                aria-pressed={pointerTool === 'laser'}
+                onClick={() => handleToggleTool('laser')}
+                className={`relative inline-flex h-full w-7 shrink-0 items-center justify-center transition ${
+                  pointerTool === 'laser'
+                    ? 'bg-red-600 text-white'
+                    : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: laserColor }}
+                  className="absolute right-0.5 bottom-0.5 h-1.5 w-1.5 rounded-full ring-1 ring-white/80 dark:ring-slate-900"
+                />
+              </button>
+              <button
+                ref={laserMenuBtnRef}
+                type="button"
+                data-testid="laser-color-menu-button"
+                data-coachmark-group="row2"
+                data-coachmark-block="pointer-ink"
+                aria-label={t.laserColorMenuTooltip}
+                title={t.laserColorMenuTooltip}
+                aria-haspopup="menu"
+                aria-expanded={laserMenuAnchor !== null}
+                onClick={() => {
+                  if (laserMenuAnchor) {
+                    setLaserMenuAnchor(null);
+                    return;
+                  }
+                  const rect = laserMenuBtnRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    setLaserMenuAnchor({
+                      top: Math.round(rect.bottom + 4),
+                      left: Math.max(8, Math.round(rect.left - 32)),
+                    });
+                  }
+                }}
+                className="inline-flex h-full w-4 shrink-0 items-center justify-center border-l border-slate-200 text-slate-600 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                <ChevronDown className="h-2.5 w-2.5" aria-hidden="true" />
+              </button>
+            </div>
+
             <button
               type="button"
+              data-testid="zoom-toggle-button"
               data-coachmark-group="row2"
               data-coachmark-block="pointer-ink"
-              aria-label={t.laserBtn}
-              title={t.laserBtn}
-              aria-pressed={pointerTool === 'laser'}
-              onClick={() => handleToggleTool('laser')}
+              aria-label={t.zoomBtn}
+              title={t.zoomBtn}
+              aria-pressed={zoomMode || isZoomed(zoomState)}
+              onClick={handleToggleZoomMode}
               className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border transition ${
-                pointerTool === 'laser'
-                  ? 'border-red-500 bg-red-600 text-white'
+                zoomMode || isZoomed(zoomState)
+                  ? 'border-blue-500 bg-blue-600 text-white'
                   : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              <Crosshair className="h-3.5 w-3.5" aria-hidden="true" />
+              <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
 
             {/* Pen Tool Group: Toggle + Swatches + Live Thickness Stepper */}
@@ -2470,6 +2781,52 @@ export function PresenterConsole() {
         </div>
       </header>
 
+      {/* Fixed Laser Color Popover (positioned outside Row 2 overflow-y-hidden) */}
+      {laserMenuAnchor && (
+        <div
+          ref={laserPopoverRef}
+          role="menu"
+          data-testid="laser-color-popover"
+          aria-label={t.laserColorMenuTooltip}
+          style={{ top: `${laserMenuAnchor.top}px`, left: `${laserMenuAnchor.left}px` }}
+          className="fixed z-50 flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800"
+        >
+          {LASER_COLOR_SWATCHES.map((swatch) => {
+            const selected = laserColor.toLowerCase() === swatch.hex.toLowerCase();
+            const label =
+              swatch.id === 'red'
+                ? t.laserColorRed
+                : swatch.id === 'green'
+                  ? t.laserColorGreen
+                  : t.laserColorBlue;
+            return (
+              <button
+                key={swatch.id}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-testid={`laser-color-${swatch.id}`}
+                aria-label={label}
+                title={label}
+                onClick={() => handleSelectLaserColor(swatch.hex)}
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition ${
+                  selected
+                    ? 'bg-slate-200 text-slate-900 ring-1 ring-blue-500 dark:bg-slate-700 dark:text-white'
+                    : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700/70'
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{ backgroundColor: swatch.hex }}
+                  className="h-2.5 w-2.5 rounded-full"
+                />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Error banner */}
       {errorMessage && (
         <div
@@ -2711,7 +3068,63 @@ export function PresenterConsole() {
       ) : (
         <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-12 lg:overflow-hidden">
           {/* Left / Center: Current Slide Stage */}
-          <div className="flex min-h-[260px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm lg:col-span-7 lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+          <div className="relative flex min-h-[260px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm lg:col-span-7 lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+            {qrOverlay.visible && (
+              <div
+                data-testid="presenter-qr-active-badge"
+                className="absolute top-3 left-3 z-20 flex items-center gap-1.5 rounded-full border border-blue-400/60 bg-slate-900/90 px-2.5 py-1 text-[11px] font-medium text-blue-100 shadow-md"
+              >
+                <QrCode className="h-3 w-3 text-blue-400" aria-hidden="true" />
+                <span>{t.qrActiveBadge}</span>
+                <button
+                  type="button"
+                  onClick={handleToggleQrOnAudience}
+                  className="ml-1 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-200 hover:bg-slate-700"
+                >
+                  {t.dismiss}
+                </button>
+              </div>
+            )}
+
+            {(zoomMode || isZoomed(zoomState)) && (
+              <div
+                data-testid="zoom-hud"
+                className="absolute top-3 right-3 z-20 flex items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/90 px-2 py-1 text-[11px] text-slate-100 shadow-md"
+              >
+                <span className="font-mono font-semibold tabular-nums">
+                  {zoomState.scale.toFixed(1)}x
+                </span>
+                <button
+                  type="button"
+                  aria-label="Zoom out"
+                  onClick={() =>
+                    handleZoomChange(zoomAtPoint(zoomState, zoomState.scale / 1.25, 0.5, 0.5))
+                  }
+                  className="rounded bg-slate-800 px-1.5 py-0.5 hover:bg-slate-700"
+                >
+                  -
+                </button>
+                <button
+                  type="button"
+                  aria-label="Zoom in"
+                  onClick={() =>
+                    handleZoomChange(zoomAtPoint(zoomState, zoomState.scale * 1.25, 0.5, 0.5))
+                  }
+                  className="rounded bg-slate-800 px-1.5 py-0.5 hover:bg-slate-700"
+                >
+                  +
+                </button>
+                <button
+                  type="button"
+                  data-testid="zoom-reset-button"
+                  onClick={handleResetZoom}
+                  className="rounded bg-blue-600 px-1.5 py-0.5 font-medium text-white hover:bg-blue-500"
+                >
+                  {t.zoomResetBtn}
+                </button>
+              </div>
+            )}
+
             <SlideStage
               engine={engineRef.current}
               deckId={meta.deckId}
@@ -2724,6 +3137,7 @@ export function PresenterConsole() {
               pointerTool={pointerTool}
               penColor={penColor}
               penWidth={penWidth}
+              laserColor={laserColor}
               laserPoint={laserPoint}
               spotlightPoint={spotlightPoint}
               spotlightRadius={spotlightRadius}
@@ -2731,6 +3145,9 @@ export function PresenterConsole() {
               inkVisible={inkVisible}
               curtainMode={curtainMode}
               isAudience={false}
+              zoomState={zoomState}
+              zoomMode={zoomMode}
+              onZoomChange={handleZoomChange}
               onNavigatePage={navigateToSlide}
               onSwipeNext={() => {
                 if (currentPage < meta.numPages) navigateToSlide(currentPage + 1);
@@ -2744,6 +3161,7 @@ export function PresenterConsole() {
                   type: 'LASER_MOVE',
                   active: pt !== null,
                   point: pt,
+                  color: laserColor,
                 });
               }}
               onSpotlightMove={(pt) => {
@@ -2997,6 +3415,79 @@ export function PresenterConsole() {
                       className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </label>
+                </div>
+
+                {/* Conference Chime Controls (Default OFF) */}
+                <div
+                  data-testid="chime-controls"
+                  data-last-bell={lastBell ? String(lastBell.count) : ''}
+                  className="mt-1.5 flex items-center justify-between gap-1 border-t border-slate-200/80 pt-1.5 text-[10px] dark:border-slate-800"
+                >
+                  <button
+                    type="button"
+                    data-testid="chime-toggle"
+                    aria-pressed={chimeEnabled}
+                    title={t.chimeToggleTooltip}
+                    onClick={() => {
+                      setChimeEnabled((prev) => {
+                        const next = !prev;
+                        void storageService.savePrefs({ chimeEnabled: next });
+                        return next;
+                      });
+                    }}
+                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium transition ${
+                      chimeEnabled
+                        ? 'border-amber-500 bg-amber-600 text-white'
+                        : 'border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {chimeEnabled ? (
+                      <Bell className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <BellOff className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    )}
+                    <span>{t.chimeLabel}</span>
+                  </button>
+
+                  <input
+                    type="range"
+                    data-testid="chime-volume"
+                    aria-label={t.chimeVolumeLabel}
+                    title={t.chimeVolumeLabel}
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={chimeVolume}
+                    onChange={(e) => {
+                      const next = clampChimeVolume(Number.parseFloat(e.target.value));
+                      setChimeVolume(next);
+                      void storageService.savePrefs({ chimeVolume: next });
+                    }}
+                    className="h-1.5 w-14 cursor-pointer accent-amber-500"
+                  />
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      data-testid="chime-test-1"
+                      title={t.chimeTest1Label}
+                      aria-label={t.chimeTest1Label}
+                      onClick={() => ringManual(1)}
+                      className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      1🔔
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="chime-ring-3"
+                      title={t.chimeRing3Label}
+                      aria-label={t.chimeRing3Label}
+                      onClick={() => ringManual(3)}
+                      className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    >
+                      3🔔
+                    </button>
+                  </div>
                 </div>
               </section>
             </div>
@@ -3348,6 +3839,35 @@ export function PresenterConsole() {
       {/* Simultaneous UI Tooltips Overlay (I) */}
       {activeModal === 'ui-guide' && (
         <UiGuideOverlay onClose={() => setActiveModal('none')} />
+      )}
+
+      {/* Q&A QR Code Instant Overlay Modal */}
+      {activeModal === 'qr' && (
+        <QrOverlayModal
+          url={qrOverlay.url}
+          label={qrOverlay.label ?? ''}
+          visibleOnAudience={qrOverlay.visible}
+          onChangeUrl={(nextUrl) => {
+            setQrOverlay((prev) => {
+              const next: QrOverlayState = { ...prev, url: nextUrl };
+              if (next.visible) {
+                syncBridgeRef.current?.post({ type: 'QR_OVERLAY', overlay: next });
+              }
+              return next;
+            });
+          }}
+          onChangeLabel={(nextLabel) => {
+            setQrOverlay((prev) => {
+              const next: QrOverlayState = { ...prev, label: nextLabel };
+              if (next.visible) {
+                syncBridgeRef.current?.post({ type: 'QR_OVERLAY', overlay: next });
+              }
+              return next;
+            });
+          }}
+          onToggleAudience={handleToggleQrOnAudience}
+          onClose={() => setActiveModal('none')}
+        />
       )}
 
       {/* Rehearsal Stats Modal (R) */}

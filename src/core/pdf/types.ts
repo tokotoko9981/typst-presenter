@@ -35,6 +35,7 @@ export interface RenderOptions {
   targetHeight: number;
   dpr: number;
   cropRegion: CropRegion;
+  zoomScale?: number;
   signal?: AbortSignal;
 }
 

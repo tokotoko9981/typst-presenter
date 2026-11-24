@@ -13,6 +13,8 @@ export interface DeckNotesBundle {
   globalTargetSeconds: number;
   lastMinutesWarning: number;
   endTimeHHMM?: string;
+  qrUrl?: string;
+  qrLabel?: string;
   noteFontSizePx: number;
   slides: Record<number, SlideNoteEntry>;
 }
@@ -42,4 +44,7 @@ export interface PresenterPrefs {
   activeDeckId: string | null;
   locale?: 'ja' | 'en';
   theme?: 'dark' | 'light';
+  chimeEnabled?: boolean;
+  chimeVolume?: number;
+  audienceProgressBar?: boolean;
 }

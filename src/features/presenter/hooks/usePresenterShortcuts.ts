@@ -9,7 +9,8 @@ export type PresenterModalKind =
   | 'help'
   | 'stats'
   | 'notes-import'
-  | 'ui-guide';
+  | 'ui-guide'
+  | 'qr';
 
 export interface UsePresenterShortcutsOptions {
   numPages: number | null;
@@ -18,6 +19,8 @@ export interface UsePresenterShortcutsOptions {
   activeModal: PresenterModalKind;
   curtainMode: CurtainMode;
   pointerTool: PointerTool;
+  zoomMode?: boolean;
+  zoomScale?: number;
   onNavigateToSlide: (page: number) => void;
   onSaveNotesEditor: () => Promise<void> | void;
   onSetActiveModal: React.Dispatch<React.SetStateAction<PresenterModalKind>>;
@@ -27,6 +30,8 @@ export interface UsePresenterShortcutsOptions {
   onToggleCurtain: (target: 'black' | 'white') => void;
   onToggleFreeze: () => void;
   onToggleTool: (tool: PointerTool) => void;
+  onToggleZoomMode?: () => void;
+  onResetZoom?: () => void;
   onClearStageOverlay: () => void;
   onClearInk: () => void;
   onToggleInkVisibility: () => void;
@@ -41,6 +46,8 @@ export function usePresenterShortcuts({
   activeModal,
   curtainMode,
   pointerTool,
+  zoomMode = false,
+  zoomScale = 1,
   onNavigateToSlide,
   onSaveNotesEditor,
   onSetActiveModal,
@@ -50,6 +57,8 @@ export function usePresenterShortcuts({
   onToggleCurtain,
   onToggleFreeze,
   onToggleTool,
+  onToggleZoomMode,
+  onResetZoom,
   onClearStageOverlay,
   onClearInk,
   onToggleInkVisibility,
@@ -87,7 +96,10 @@ export function usePresenterShortcuts({
           onSetActiveModal('none');
           return;
         }
-        if (!inEditable && (curtainMode !== 'none' || pointerTool !== 'none')) {
+        if (
+          !inEditable &&
+          (curtainMode !== 'none' || pointerTool !== 'none' || zoomMode || zoomScale > 1.001)
+        ) {
           e.preventDefault();
           onClearStageOverlay();
           return;
@@ -99,6 +111,13 @@ export function usePresenterShortcuts({
       }
 
       if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+      }
+
+      // '0' resets zoom when no multi-digit slide jump is in progress and zoom is active
+      if (e.key === '0' && digitBufferRef.current.length === 0 && (zoomMode || zoomScale > 1.001)) {
+        e.preventDefault();
+        onResetZoom?.();
         return;
       }
 
@@ -191,6 +210,12 @@ export function usePresenterShortcuts({
         case 'S': {
           e.preventDefault();
           onToggleTool('spotlight');
+          break;
+        }
+        case 'z':
+        case 'Z': {
+          e.preventDefault();
+          onToggleZoomMode?.();
           break;
         }
         case 'c':
@@ -287,6 +312,8 @@ export function usePresenterShortcuts({
     activeModal,
     curtainMode,
     pointerTool,
+    zoomMode,
+    zoomScale,
     onNavigateToSlide,
     onSaveNotesEditor,
     onSetActiveModal,
@@ -296,6 +323,8 @@ export function usePresenterShortcuts({
     onToggleCurtain,
     onToggleFreeze,
     onToggleTool,
+    onToggleZoomMode,
+    onResetZoom,
     onClearStageOverlay,
     onClearInk,
     onToggleInkVisibility,

@@ -81,7 +81,7 @@ export function getCropBounds(cropRegion: CropRegion): CropBounds {
 export function computeRenderPlan(
   baseWidth: number,
   baseHeight: number,
-  options: Pick<RenderOptions, 'targetWidth' | 'targetHeight' | 'dpr' | 'cropRegion'>,
+  options: Pick<RenderOptions, 'targetWidth' | 'targetHeight' | 'dpr' | 'cropRegion' | 'zoomScale'>,
 ): RenderPlan {
   const safeBaseW = baseWidth > 0 && Number.isFinite(baseWidth) ? baseWidth : 1;
   const safeBaseH = baseHeight > 0 && Number.isFinite(baseHeight) ? baseHeight : 1;
@@ -102,8 +102,15 @@ export function computeRenderPlan(
 
   const clampedDpr =
     Number.isFinite(options.dpr) && options.dpr > 0 ? Math.min(options.dpr, MAX_DPR) : 1;
+  const clampedZoom =
+    typeof options.zoomScale === 'number' && Number.isFinite(options.zoomScale)
+      ? Math.max(1, Math.min(4, options.zoomScale))
+      : 1;
   const edgeCapScale = Math.min(MAX_CANVAS_EDGE / cssWidth, MAX_CANVAS_EDGE / cssHeight);
-  const outputScale = Math.max(1 / Math.max(cssWidth, cssHeight), Math.min(clampedDpr, edgeCapScale));
+  const outputScale = Math.max(
+    1 / Math.max(cssWidth, cssHeight),
+    Math.min(clampedDpr * clampedZoom, edgeCapScale),
+  );
 
   const canvasWidth = Math.min(MAX_CANVAS_EDGE, Math.max(1, Math.floor(cssWidth * outputScale)));
   const canvasHeight = Math.min(MAX_CANVAS_EDGE, Math.max(1, Math.floor(cssHeight * outputScale)));

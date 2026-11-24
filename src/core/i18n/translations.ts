@@ -51,6 +51,28 @@ export interface TranslationDict {
   whiteoutBtn: string;
   freezeBtn: string;
   laserBtn: string;
+  laserColorMenuTooltip: string;
+  laserColorRed: string;
+  laserColorGreen: string;
+  laserColorBlue: string;
+  zoomBtn: string;
+  zoomResetBtn: string;
+  qrBtn: string;
+  qrModalTitle: string;
+  qrModalDesc: string;
+  qrUrlLabel: string;
+  qrCaptionLabel: string;
+  qrCaptionPlaceholder: string;
+  qrEmptyPreview: string;
+  qrShowOnAudience: string;
+  qrHideFromAudience: string;
+  qrActiveBadge: string;
+  progressBarToggle: string;
+  chimeLabel: string;
+  chimeToggleTooltip: string;
+  chimeVolumeLabel: string;
+  chimeTest1Label: string;
+  chimeRing3Label: string;
   penBtn: string;
   spotlightBtn: string;
   spotMinus: string;
@@ -204,6 +226,8 @@ export interface TranslationDict {
   shortcutEscClear: string;
   shortcutFreeze: string;
   shortcutLaser: string;
+  shortcutZoom: string;
+  shortcutZoomReset: string;
   shortcutPen: string;
   shortcutSpotlight: string;
   shortcutClearInk: string;
@@ -291,6 +315,28 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     whiteoutBtn: 'Whiteout (W)',
     freezeBtn: 'Freeze Audience (F)',
     laserBtn: 'Laser Pointer (L)',
+    laserColorMenuTooltip: 'Laser Pointer Color (Red / Green / Blue)',
+    laserColorRed: 'Red',
+    laserColorGreen: 'Green',
+    laserColorBlue: 'Blue',
+    zoomBtn: 'Zoom & Pan (Z)',
+    zoomResetBtn: 'Reset (0)',
+    qrBtn: 'Q&A QR Code Overlay',
+    qrModalTitle: 'Q&A QR Code Overlay',
+    qrModalDesc: 'Generate an offline QR code for handouts or links and project it onto the Audience display.',
+    qrUrlLabel: 'Target URL / Text',
+    qrCaptionLabel: 'Caption (optional)',
+    qrCaptionPlaceholder: 'e.g. Slides & Code',
+    qrEmptyPreview: 'Enter a URL above to preview QR code.',
+    qrShowOnAudience: 'Show on Audience',
+    qrHideFromAudience: 'Hide from Audience',
+    qrActiveBadge: 'QR Active',
+    progressBarToggle: 'Audience 2px Progress Bar',
+    chimeLabel: 'Chime',
+    chimeToggleTooltip: 'Toggle conference timer chime (1=warn, 2=end, 3=+1m)',
+    chimeVolumeLabel: 'Chime volume',
+    chimeTest1Label: 'Test 1-bell',
+    chimeRing3Label: 'Ring 3-bell (finish)',
     penBtn: 'Pen (D)',
     spotlightBtn: 'Spotlight (S)',
     spotMinus: 'Smaller Spotlight ([)',
@@ -321,12 +367,12 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideNotes: 'Notes Header',
     uiGuideCloseHint: 'Click anywhere or press Esc / I to close',
     uiGuideBlockDeckFiles: 'Deck & Watch (Open / Sample / Recent / Watch)',
-    uiGuideBlockAudienceDisplay: 'Audience Window & Monitor Selection',
+    uiGuideBlockAudienceDisplay: 'Audience Window, Monitor, QR & Progress Bar',
     uiGuideBlockAppSettings: 'Theme, Language, UI Guide (I) & Help (?)',
     uiGuideBlockSlideNav: 'Slide Navigation & Direct Jump',
     uiGuideBlockSplitCrop: 'Split-Note Crop & L|R Swap',
     uiGuideBlockStageCurtain: 'Blackout (B / .) · Whiteout (W) · Freeze (F)',
-    uiGuideBlockPointerInk: 'Laser (L) · Pen (D, colors, +/-) · Spotlight (S, [ / ])',
+    uiGuideBlockPointerInk: 'Laser (L) · Pen (D) · Spotlight (S) · Zoom (Z)',
     uiGuideBlockInkActions: 'Undo · Clear (C) · Show/Hide Ink (H)',
     uiGuideBlockViewsGuard: 'Focus Guard · Stats (R) · Grid (G) · Outline (O)',
     uiGuideBlockNotesFont: 'Note Font Size (A- / A+)',
@@ -450,6 +496,8 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutEscClear: 'Close Modal / Clear Curtain & Pointer Tool',
     shortcutFreeze: 'Freeze / Unfreeze Audience Display',
     shortcutLaser: 'Toggle Laser Pointer',
+    shortcutZoom: 'Toggle Slide Zoom & Pan (Wheel to zoom, Drag to pan)',
+    shortcutZoomReset: 'Reset Slide Zoom',
     shortcutPen: 'Toggle Freehand Pen (+ / - width)',
     shortcutSpotlight: 'Toggle Spotlight (click to pin, wheel or [ / ] radius)',
     shortcutClearInk: 'Clear Ink on Current Slide',
@@ -462,7 +510,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
 
     helpFormatMarkdownTitle: 'Markdown (--- or <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      'Separate slides with --- or explicit <!-- slide: 2 --> markers. Add <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, endTime) to configure the timer.',
+      'Separate slides with --- or explicit <!-- slide: 2 --> markers. Add <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, endTime, qrUrl) to configure the timer and Q&A QR.',
     helpFormatMarpTitle: 'Marp / Slidev Source .md',
     helpFormatMarpBody:
       'Slide formatting directives (paginate:, layout:, <!--fit-->) are removed and HTML speaker comments are assigned to each slide.',
@@ -540,6 +588,28 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     whiteoutBtn: '白画面 (W)',
     freezeBtn: '画面固定 (F)',
     laserBtn: 'レーザー (L)',
+    laserColorMenuTooltip: 'レーザー色切替 (赤 / 緑 / 青)',
+    laserColorRed: '赤',
+    laserColorGreen: '緑',
+    laserColorBlue: '青',
+    zoomBtn: '部分拡大・パン (Z)',
+    zoomResetBtn: 'リセット (0)',
+    qrBtn: 'Q&A 用 QR コード投影',
+    qrModalTitle: 'Q&A 用 QR コード投影',
+    qrModalDesc: '外部通信なしで URL の QR コードを生成し、聴衆画面へ即時投影します。',
+    qrUrlLabel: 'リンク URL / テキスト',
+    qrCaptionLabel: 'キャプション (任意)',
+    qrCaptionPlaceholder: '例: 資料・リポジトリ',
+    qrEmptyPreview: 'URL を入力すると QR コードをプレビューします。',
+    qrShowOnAudience: '聴衆画面に表示',
+    qrHideFromAudience: '聴衆画面から消す',
+    qrActiveBadge: 'QR 投影中',
+    progressBarToggle: '聴衆極薄プログレスバー (2px)',
+    chimeLabel: 'チャイム',
+    chimeToggleTooltip: '学会タイマー鈴を切替 (警告=1鈴, 終了=2鈴, +1分=3鈴)',
+    chimeVolumeLabel: 'チャイム音量',
+    chimeTest1Label: 'テスト 1鈴',
+    chimeRing3Label: '手動 3鈴',
     penBtn: 'ペン (D)',
     spotlightBtn: 'スポットライト (S)',
     spotMinus: 'スポット半径 縮小 ([)',
@@ -570,12 +640,12 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideNotes: 'ノート欄',
     uiGuideCloseHint: '画面クリックまたは Esc / I で閉じる',
     uiGuideBlockDeckFiles: 'PDF 読み込み・サンプル・履歴・自動監視',
-    uiGuideBlockAudienceDisplay: '投影ディスプレイ選択・聴衆ウィンドウ起動/接続',
+    uiGuideBlockAudienceDisplay: 'ディスプレイ選択・聴衆起動・QR・進捗バー',
     uiGuideBlockAppSettings: 'テーマ・言語・操作ガイド (I)・ヘルプ (?)',
     uiGuideBlockSlideNav: 'スライド前後移動・番号ジャンプ',
     uiGuideBlockSplitCrop: 'ノート分割クロップ・左右入替',
     uiGuideBlockStageCurtain: '黒画面 (B / .)・白画面 (W)・画面固定 (F)',
-    uiGuideBlockPointerInk: 'レーザー (L)・ペン (D, 色/+/-)・スポットライト (S, [ / ])',
+    uiGuideBlockPointerInk: 'レーザー (L)・ペン (D)・スポット (S)・拡大 (Z)',
     uiGuideBlockInkActions: '戻す・全消去 (C)・描線表示切替 (H)',
     uiGuideBlockViewsGuard: 'フォーカスガード・時間分析 (R)・一覧 (G)・目次 (O)',
     uiGuideBlockNotesFont: 'ノート文字サイズ (A- / A+)',
@@ -699,6 +769,8 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutEscClear: 'モーダルを閉じる / カーテン・ポインター解除',
     shortcutFreeze: '聴衆画面の一時固定（手元だけ移動）',
     shortcutLaser: 'レーザーポインターの切替',
+    shortcutZoom: 'スライド部分拡大・パン (ホイール拡大 / ドラッグ移動)',
+    shortcutZoomReset: 'スライド拡大のリセット',
     shortcutPen: 'フリーハンドペンの切替（+ / - で太さ調整）',
     shortcutSpotlight: 'スポットライト（クリック固定・ホイール / [ ] でサイズ変更）',
     shortcutClearInk: '現在のスライドの描線を消去',
@@ -711,7 +783,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
 
     helpFormatMarkdownTitle: 'Markdown ノート (--- / <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      '--- でスライドを区切るか、<!-- slide: 2 --> でページを指定します。<!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・endTime）も認識します。',
+      '--- でスライドを区切るか、<!-- slide: 2 --> でページを指定します。<!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・endTime・qrUrl）も認識します。',
     helpFormatMarpTitle: 'Marp / Slidev 原稿 Markdown',
     helpFormatMarpBody:
       '.md 原稿をそのまま読み込めます。paginate:・layout:・<!--fit--> などの設定行を除き、ノートコメントのみを抽出します。',

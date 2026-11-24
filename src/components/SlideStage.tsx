@@ -7,7 +7,32 @@ import type {
   InkStroke,
   NormalizedPoint,
   PointerTool,
+  ZoomState,
 } from '../core/sync/types.ts';
+import {
+  DEFAULT_ZOOM_STATE,
+  isZoomed,
+  panByNormalizedDelta,
+  zoomAtPoint,
+} from '../core/zoom/zoomMath.ts';
+
+export const LASER_COLOR_SWATCHES = [
+  { id: 'red', label: 'Red', hex: '#ef4444' },
+  { id: 'green', label: 'Green', hex: '#22c55e' },
+  { id: 'blue', label: 'Blue', hex: '#3b82f6' },
+] as const;
+
+export function parseHexRgb(hex: string): [number, number, number] {
+  const clean = hex.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{6}$/.test(clean)) {
+    return [
+      Number.parseInt(clean.slice(0, 2), 16),
+      Number.parseInt(clean.slice(2, 4), 16),
+      Number.parseInt(clean.slice(4, 6), 16),
+    ];
+  }
+  return [239, 68, 68];
+}
 
 export interface SlideStageProps {
   engine: PdfEngine | null;
@@ -29,6 +54,9 @@ export interface SlideStageProps {
   inkVisible?: boolean;
   curtainMode?: CurtainMode;
   isAudience?: boolean;
+  zoomState?: ZoomState;
+  zoomMode?: boolean;
+  onZoomChange?: (next: ZoomState) => void;
   onNavigatePage?: (targetPage: number) => void;
   onSwipeNext?: () => void;
   onSwipePrev?: () => void;
@@ -66,6 +94,9 @@ export function SlideStage({
   inkVisible = true,
   curtainMode = 'none',
   isAudience = false,
+  zoomState = DEFAULT_ZOOM_STATE,
+  zoomMode = false,
+  onZoomChange,
   onNavigatePage,
   onSwipeNext,
   onSwipePrev,
@@ -78,11 +109,15 @@ export function SlideStage({
 }: SlideStageProps) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const stageFrameRef = useRef<HTMLDivElement | null>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const laserTrailRef = useRef<Array<{ x: number; y: number; ts: number }>>([]);
   const [trailTick, setTrailTick] = useState<number>(0);
   const [spotlightPinned, setSpotlightPinned] = useState<boolean>(false);
+  const [settledZoomScale, setSettledZoomScale] = useState<number>(1);
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const panDragRef = useRef<{ lastX: number; lastY: number; zoom: ZoomState } | null>(null);
 
   const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(
     null,
@@ -122,6 +157,18 @@ export function SlideStage({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
+  // Debounce high-resolution PDF re-render when zoomed so math/tables stay crisp
+  useEffect(() => {
+    if (!isZoomed(zoomState)) {
+      setSettledZoomScale(1);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      setSettledZoomScale(zoomState.scale);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [zoomState.scale, zoomState.panX, zoomState.panY]);
+
   // Render PDF page offscreen and atomically blit to visible canvas on completion
   useEffect(() => {
     const visibleCanvas = pdfCanvasRef.current;
@@ -139,13 +186,16 @@ export function SlideStage({
     const controller = new AbortController();
     const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
     const offscreenCanvas = document.createElement('canvas');
+    const targetWidth = Math.max(120, containerSize.width - 8);
+    const targetHeight = Math.max(80, containerSize.height - 8);
 
     void engine
       .renderPageToCanvas(pageNumber, offscreenCanvas, {
-        targetWidth: Math.max(120, containerSize.width - 8),
-        targetHeight: Math.max(80, containerSize.height - 8),
+        targetWidth,
+        targetHeight,
         dpr,
         cropRegion,
+        zoomScale: settledZoomScale,
         signal: controller.signal,
       })
       .then((res) => {
@@ -162,6 +212,14 @@ export function SlideStage({
             }
           }
           setRenderedSize({ width: res.cssWidth, height: res.cssHeight });
+          if (settledZoomScale <= 1.01) {
+            engine.prefetchAdjacentPages(pageNumber, {
+              targetWidth,
+              targetHeight,
+              dpr,
+              cropRegion,
+            });
+          }
         }
       })
       .catch(() => {
@@ -171,7 +229,15 @@ export function SlideStage({
     return () => {
       controller.abort();
     };
-  }, [engine, deckId, pageNumber, cropRegion, containerSize?.width, containerSize?.height]);
+  }, [
+    engine,
+    deckId,
+    pageNumber,
+    cropRegion,
+    containerSize?.width,
+    containerSize?.height,
+    settledZoomScale,
+  ]);
 
   // Extract clickable links for the active page & cropRegion
   useEffect(() => {
@@ -252,23 +318,39 @@ export function SlideStage({
     return undefined;
   }, [laserPoint, pointerTool, interactive, trailTick]);
 
-  // Adjust spotlight radius with mouse wheel when spotlight tool is active
+  // Adjust spotlight radius or zoom level with mouse wheel
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !interactive || pointerTool !== 'spotlight' || !onSpotlightRadiusDelta) {
+    if (!el || !interactive) {
       return;
     }
+    const spotlightActive = pointerTool === 'spotlight' && Boolean(onSpotlightRadiusDelta);
+    const zoomActive = (zoomMode || isZoomed(zoomState)) && Boolean(onZoomChange);
+    if (!spotlightActive && !zoomActive) {
+      return;
+    }
+
     const handleWheel = (e: WheelEvent) => {
       if (e.deltaY === 0) return;
       e.preventDefault();
-      const delta = e.deltaY < 0 ? 0.035 : -0.035;
-      onSpotlightRadiusDelta(delta);
+      if (spotlightActive && onSpotlightRadiusDelta) {
+        const delta = e.deltaY < 0 ? 0.035 : -0.035;
+        onSpotlightRadiusDelta(delta);
+        return;
+      }
+      if (zoomActive && onZoomChange) {
+        const frameRect = (stageFrameRef.current ?? el).getBoundingClientRect();
+        const nx = frameRect.width > 0 ? (e.clientX - frameRect.left) / frameRect.width : 0.5;
+        const ny = frameRect.height > 0 ? (e.clientY - frameRect.top) / frameRect.height : 0.5;
+        const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+        onZoomChange(zoomAtPoint(zoomState, zoomState.scale * factor, nx, ny));
+      }
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [interactive, pointerTool, onSpotlightRadiusDelta]);
+  }, [interactive, pointerTool, onSpotlightRadiusDelta, zoomMode, zoomState, onZoomChange]);
 
   // Draw annotations (Spotlight, Pen Strokes, Laser Pointer) onto overlay canvas
   useEffect(() => {
@@ -350,6 +432,10 @@ export function SlideStage({
       const ly = clamp01(laserPoint.y) * h;
       const coreR = Math.max(7, Math.round(Math.min(w, h) * 0.016));
       const glowR = Math.max(18, Math.round(coreR * 2.25));
+      const [lr, lg, lb] = parseHexRgb(laserColor || '#ef4444');
+      const hiR = Math.min(255, lr + 40);
+      const hiG = Math.min(255, lg + 40);
+      const hiB = Math.min(255, lb + 40);
 
       ctx.save();
       const now = performance.now();
@@ -364,7 +450,7 @@ export function SlideStage({
           const orderFactor = (i + 1) / trail.length;
           const alpha = ageFactor * orderFactor * 0.48;
           if (alpha <= 0.01) continue;
-          ctx.strokeStyle = `rgba(239, 68, 68, ${alpha.toFixed(3)})`;
+          ctx.strokeStyle = `rgba(${lr}, ${lg}, ${lb}, ${alpha.toFixed(3)})`;
           ctx.lineWidth = Math.max(2, coreR * 0.75 * orderFactor);
           ctx.beginPath();
           ctx.moveTo(clamp01(p1.x) * w, clamp01(p1.y) * h);
@@ -375,10 +461,10 @@ export function SlideStage({
 
       // Outer radial soft glow (borderless optical bloom)
       const laserGrad = ctx.createRadialGradient(lx, ly, coreR * 0.15, lx, ly, glowR);
-      laserGrad.addColorStop(0, 'rgba(255, 80, 80, 0.96)');
-      laserGrad.addColorStop(0.4, 'rgba(239, 68, 68, 0.72)');
-      laserGrad.addColorStop(0.72, 'rgba(220, 38, 38, 0.28)');
-      laserGrad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+      laserGrad.addColorStop(0, `rgba(${hiR}, ${hiG}, ${hiB}, 0.96)`);
+      laserGrad.addColorStop(0.4, `rgba(${lr}, ${lg}, ${lb}, 0.72)`);
+      laserGrad.addColorStop(0.72, `rgba(${lr}, ${lg}, ${lb}, 0.28)`);
+      laserGrad.addColorStop(1, `rgba(${lr}, ${lg}, ${lb}, 0)`);
       ctx.fillStyle = laserGrad;
       ctx.beginPath();
       ctx.arc(lx, ly, glowR, 0, Math.PI * 2);
@@ -459,6 +545,37 @@ export function SlideStage({
     };
   }, [interactive, activeDraftStroke, onStrokeCommit, onStrokeLiveUpdate]);
 
+  // Drag-to-pan on window when zoomed
+  useEffect(() => {
+    if (!interactive || !isPanning || !onZoomChange) return;
+
+    const handlePanMove = (e: MouseEvent) => {
+      const drag = panDragRef.current;
+      if (!drag) return;
+      const dx = e.clientX - drag.lastX;
+      const dy = e.clientY - drag.lastY;
+      drag.lastX = e.clientX;
+      drag.lastY = e.clientY;
+      const w = Math.max(1, renderedSize.width);
+      const h = Math.max(1, renderedSize.height);
+      const next = panByNormalizedDelta(drag.zoom, dx / w, dy / h);
+      drag.zoom = next;
+      onZoomChange(next);
+    };
+
+    const handlePanEnd = () => {
+      panDragRef.current = null;
+      setIsPanning(false);
+    };
+
+    window.addEventListener('mousemove', handlePanMove);
+    window.addEventListener('mouseup', handlePanEnd);
+    return () => {
+      window.removeEventListener('mousemove', handlePanMove);
+      window.removeEventListener('mouseup', handlePanEnd);
+    };
+  }, [interactive, isPanning, onZoomChange, renderedSize.width, renderedSize.height]);
+
   const handleStageMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!interactive || e.button !== 0) return;
     if (pointerTool === 'pen') {
@@ -481,6 +598,9 @@ export function SlideStage({
         onSpotlightMove?.(pt);
         return nextPinned;
       });
+    } else if (isZoomed(zoomState) && onZoomChange) {
+      panDragRef.current = { lastX: e.clientX, lastY: e.clientY, zoom: zoomState };
+      setIsPanning(true);
     }
   };
 
@@ -541,6 +661,11 @@ export function SlideStage({
     }
   };
 
+  const zoomed = isZoomed(zoomState);
+  const zoomLayerTransform = zoomed
+    ? `translate3d(${(zoomState.panX * 100).toFixed(4)}%, ${(zoomState.panY * 100).toFixed(4)}%, 0) scale(${zoomState.scale.toFixed(4)})`
+    : undefined;
+
   return (
     <div
       ref={containerRef}
@@ -556,97 +681,119 @@ export function SlideStage({
           ? 'cursor-none'
           : interactive && pointerTool === 'pen'
             ? 'cursor-crosshair'
-            : ''
+            : interactive && isPanning
+              ? 'cursor-grabbing'
+              : interactive && zoomed
+                ? 'cursor-grab'
+                : interactive && zoomMode
+                  ? 'cursor-zoom-in'
+                  : ''
       }`}
     >
       <div
-        className="relative flex items-center justify-center"
+        ref={stageFrameRef}
+        className="relative flex items-center justify-center overflow-hidden"
         style={{
           width: `${renderedSize.width}px`,
           height: `${renderedSize.height}px`,
         }}
       >
-        <canvas
-          ref={pdfCanvasRef}
-          data-testid={canvasTestId}
-          className="block shadow-lg"
-        />
-
-        <canvas
-          ref={overlayCanvasRef}
-          data-testid="slide-overlay-canvas"
-          aria-label="Slide annotation overlay"
+        <div
+          data-testid="slide-zoom-layer"
+          data-zoom-scale={zoomState.scale.toFixed(2)}
+          data-zoom-pan-x={zoomState.panX.toFixed(3)}
+          data-zoom-pan-y={zoomState.panY.toFixed(3)}
           style={{
-            width: `${renderedSize.width}px`,
-            height: `${renderedSize.height}px`,
+            width: '100%',
+            height: '100%',
+            transformOrigin: '50% 50%',
+            transform: zoomLayerTransform,
           }}
-          className={`pointer-events-none absolute inset-0 ${
-            pointerTool === 'pen' ? 'cursor-crosshair' : ''
-          }`}
-        />
+          className="relative flex items-center justify-center"
+        >
+          <canvas
+            ref={pdfCanvasRef}
+            data-testid={canvasTestId}
+            className="block shadow-lg"
+          />
 
-        {showLinks && links.length > 0 && (
-          <div
-            data-testid="pdf-link-layer"
-            className={`absolute inset-0 ${
-              pointerTool === 'none' ? 'pointer-events-auto' : 'pointer-events-none'
+          <canvas
+            ref={overlayCanvasRef}
+            data-testid="slide-overlay-canvas"
+            data-laser-color={laserColor}
+            aria-label="Slide annotation overlay"
+            style={{
+              width: `${renderedSize.width}px`,
+              height: `${renderedSize.height}px`,
+            }}
+            className={`pointer-events-none absolute inset-0 ${
+              pointerTool === 'pen' ? 'cursor-crosshair' : ''
             }`}
-          >
-            {links.map((link, idx) => {
-              const [x1, y1, x2, y2] = link.rect;
-              const style: React.CSSProperties = {
-                left: `${x1 * 100}%`,
-                top: `${y1 * 100}%`,
-                width: `${Math.max(1, (x2 - x1) * 100)}%`,
-                height: `${Math.max(1, (y2 - y1) * 100)}%`,
-              };
+          />
 
-              if (link.url) {
-                return (
-                  <a
-                    key={`ext-${idx}-${link.url}`}
-                    href={link.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={link.url}
-                    aria-label={link.url}
-                    style={style}
-                    className="absolute block cursor-pointer rounded transition-colors hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                  >
-                    <span className="sr-only">{link.url}</span>
-                  </a>
-                );
-              }
+          {showLinks && links.length > 0 && (
+            <div
+              data-testid="pdf-link-layer"
+              className={`absolute inset-0 ${
+                pointerTool === 'none' ? 'pointer-events-auto' : 'pointer-events-none'
+              }`}
+            >
+              {links.map((link, idx) => {
+                const [x1, y1, x2, y2] = link.rect;
+                const style: React.CSSProperties = {
+                  left: `${x1 * 100}%`,
+                  top: `${y1 * 100}%`,
+                  width: `${Math.max(1, (x2 - x1) * 100)}%`,
+                  height: `${Math.max(1, (y2 - y1) * 100)}%`,
+                };
 
-              if (link.destPage !== undefined) {
-                const targetPage = link.destPage;
-                return (
-                  <button
-                    key={`int-${idx}-${targetPage}`}
-                    type="button"
-                    role="link"
-                    data-dest-page={targetPage}
-                    data-link-dest={targetPage}
-                    title={`Jump to Slide ${targetPage}`}
-                    aria-label={`Jump to Slide ${targetPage}`}
-                    onClick={(ev) => {
-                      ev.stopPropagation();
-                      onNavigatePage?.(targetPage);
-                    }}
-                    style={style}
-                    className="absolute block cursor-pointer rounded transition-colors hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  >
-                    <span className="sr-only">
-                      Jump to Slide {targetPage} Back to Slide {targetPage}
-                    </span>
-                  </button>
-                );
-              }
+                if (link.url) {
+                  return (
+                    <a
+                      key={`ext-${idx}-${link.url}`}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={link.url}
+                      aria-label={link.url}
+                      style={style}
+                      className="absolute block cursor-pointer rounded transition-colors hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    >
+                      <span className="sr-only">{link.url}</span>
+                    </a>
+                  );
+                }
 
-              return null;
-            })}
-          </div>
-        )}
+                if (link.destPage !== undefined) {
+                  const targetPage = link.destPage;
+                  return (
+                    <button
+                      key={`int-${idx}-${targetPage}`}
+                      type="button"
+                      role="link"
+                      data-dest-page={targetPage}
+                      data-link-dest={targetPage}
+                      title={`Jump to Slide ${targetPage}`}
+                      aria-label={`Jump to Slide ${targetPage}`}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        onNavigatePage?.(targetPage);
+                      }}
+                      style={style}
+                      className="absolute block cursor-pointer rounded transition-colors hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <span className="sr-only">
+                        Jump to Slide {targetPage} Back to Slide {targetPage}
+                      </span>
+                    </button>
+                  );
+                }
+
+                return null;
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Presenter stage curtain indicator */}
         {!isAudience && curtainMode !== 'none' && (

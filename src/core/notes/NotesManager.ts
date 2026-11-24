@@ -8,6 +8,8 @@ export interface ParsedSidecarResult {
   lastMinutesWarning?: number;
   noteFontSizePx?: number;
   endTimeHHMM?: string;
+  qrUrl?: string;
+  qrLabel?: string;
 }
 
 export interface ParseMarkdownSidecarOptions {
@@ -382,6 +384,8 @@ function parseLeadingFrontmatter(text: string): {
   lastMinutesWarning?: number;
   noteFontSizePx?: number;
   endTimeHHMM?: string;
+  qrUrl?: string;
+  qrLabel?: string;
 } {
   const m = text.match(/^---[ \t]*\n([\s\S]*?\n)?---[ \t]*(?:\n|$)/);
   if (!m) {
@@ -393,6 +397,8 @@ function parseLeadingFrontmatter(text: string): {
   let lastMinutesWarning: number | undefined;
   let noteFontSizePx: number | undefined;
   let endTimeHHMM: string | undefined;
+  let qrUrl: string | undefined;
+  let qrLabel: string | undefined;
 
   for (const line of rawYaml.split('\n')) {
     const kv = line.match(/^[ \t]*([A-Za-z0-9_-]+)[ \t]*:[ \t]*(.+?)[ \t]*$/);
@@ -410,6 +416,10 @@ function parseLeadingFrontmatter(text: string): {
       if (Number.isFinite(num) && num > 0) noteFontSizePx = clampNoteFontSize(num);
     } else if ((key === 'endtime' || key === 'endtimehhmm') && parseValidHHMM(val) !== null) {
       endTimeHHMM = val;
+    } else if ((key === 'qrurl' || key === 'qr_url' || key === 'qr') && val.length > 0) {
+      qrUrl = val;
+    } else if ((key === 'qrlabel' || key === 'qr_label') && val.length > 0) {
+      qrLabel = val;
     }
   }
 
@@ -420,6 +430,8 @@ function parseLeadingFrontmatter(text: string): {
     ...(lastMinutesWarning !== undefined ? { lastMinutesWarning } : {}),
     ...(noteFontSizePx !== undefined ? { noteFontSizePx } : {}),
     ...(endTimeHHMM !== undefined ? { endTimeHHMM } : {}),
+    ...(qrUrl !== undefined ? { qrUrl } : {}),
+    ...(qrLabel !== undefined ? { qrLabel } : {}),
   };
 }
 
@@ -508,6 +520,8 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
   let lastMinutesWarning: number | undefined;
   let noteFontSizePx: number | undefined;
   let endTimeHHMM: string | undefined;
+  let qrUrl: string | undefined;
+  let qrLabel: string | undefined;
 
   // 1. .pdfpc v2 format
   if ('pdfpcFormat' in obj || Array.isArray(obj.pages)) {
@@ -586,6 +600,12 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
   if (typeof obj.endTimeHHMM === 'string' && parseValidHHMM(obj.endTimeHHMM) !== null) {
     endTimeHHMM = obj.endTimeHHMM.trim();
   }
+  if (typeof obj.qrUrl === 'string' && obj.qrUrl.trim().length > 0) {
+    qrUrl = obj.qrUrl.trim();
+  }
+  if (typeof obj.qrLabel === 'string' && obj.qrLabel.trim().length > 0) {
+    qrLabel = obj.qrLabel.trim();
+  }
 
   const rawSlides =
     obj.slides && typeof obj.slides === 'object' && !Array.isArray(obj.slides)
@@ -636,6 +656,8 @@ export function parseJsonOrPdfpcSidecar(text: string, fileName: string): ParsedS
     ...(lastMinutesWarning !== undefined ? { lastMinutesWarning } : {}),
     ...(noteFontSizePx !== undefined ? { noteFontSizePx } : {}),
     ...(endTimeHHMM !== undefined ? { endTimeHHMM } : {}),
+    ...(qrUrl !== undefined ? { qrUrl } : {}),
+    ...(qrLabel !== undefined ? { qrLabel } : {}),
   };
 }
 
@@ -714,6 +736,14 @@ export function exportNotesToMarkdown(bundle: DeckNotesBundle, numPages: number)
     typeof bundle.endTimeHHMM === 'string' && parseValidHHMM(bundle.endTimeHHMM) !== null
       ? bundle.endTimeHHMM.trim()
       : undefined;
+  const trimmedQrUrl =
+    typeof bundle.qrUrl === 'string' && bundle.qrUrl.trim().length > 0
+      ? bundle.qrUrl.trim()
+      : undefined;
+  const trimmedQrLabel =
+    typeof bundle.qrLabel === 'string' && bundle.qrLabel.trim().length > 0
+      ? bundle.qrLabel.trim()
+      : undefined;
   const hasCustomDuration =
     Number.isFinite(bundle.globalTargetSeconds) &&
     bundle.globalTargetSeconds > 0 &&
@@ -731,7 +761,9 @@ export function exportNotesToMarkdown(bundle: DeckNotesBundle, numPages: number)
     hasCustomDuration ||
     hasCustomLastMinutes ||
     hasCustomFontSize ||
-    trimmedEndTime !== undefined;
+    trimmedEndTime !== undefined ||
+    trimmedQrUrl !== undefined ||
+    trimmedQrLabel !== undefined;
 
   const body = blocks.join('\n\n---\n\n');
 
@@ -757,6 +789,12 @@ export function exportNotesToMarkdown(bundle: DeckNotesBundle, numPages: number)
   ];
   if (trimmedEndTime !== undefined) {
     frontmatterLines.push(`endTime: "${trimmedEndTime}"`);
+  }
+  if (trimmedQrUrl !== undefined) {
+    frontmatterLines.push(`qrUrl: "${trimmedQrUrl}"`);
+  }
+  if (trimmedQrLabel !== undefined) {
+    frontmatterLines.push(`qrLabel: "${trimmedQrLabel}"`);
   }
   frontmatterLines.push('---');
 

@@ -19,6 +19,7 @@ export interface StoredSessionSnapshot {
   swapSplitHalves: boolean;
   curtainMode: 'none' | 'black' | 'white';
   frozen: boolean;
+  audienceProgressBar?: boolean;
   updatedAt: number;
 }
 
@@ -33,6 +34,9 @@ export const DEFAULT_PREFS: PresenterPrefs = {
   penWidth: 0.008,
   spotlightRadius: 0.16,
   activeDeckId: null,
+  chimeEnabled: false,
+  chimeVolume: 0.7,
+  audienceProgressBar: false,
 };
 
 export function clampNoteFontSize(px: number): number {

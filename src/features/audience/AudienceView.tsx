@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SlideStage } from '../../components/SlideStage.tsx';
 import { useI18n } from '../../core/i18n/I18nContext.tsx';
 import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
@@ -9,6 +9,7 @@ import {
   isTauriRuntime,
   setAudienceWindowFullscreen,
 } from '../../core/platform/DesktopBridge.ts';
+import { generateQrSvg } from '../../core/qr/qrSvg.ts';
 import { storageService } from '../../core/storage/StorageService.ts';
 import { SyncBridge } from '../../core/sync/SyncBridge.ts';
 import type {
@@ -16,8 +17,11 @@ import type {
   InkStroke,
   NormalizedPoint,
   PointerTool,
+  QrOverlayState,
   SyncMessage,
+  ZoomState,
 } from '../../core/sync/types.ts';
+import { DEFAULT_ZOOM_STATE } from '../../core/zoom/zoomMath.ts';
 
 function parseSessionIdFromHash(hash: string): string {
   const qIndex = hash.indexOf('?');
@@ -64,15 +68,20 @@ export function AudienceView() {
 
   const [deckId, setDeckId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(0);
   const [cropMode, setCropMode] = useState<CropMode>('full');
   const [swapSplitHalves, setSwapSplitHalves] = useState<boolean>(false);
   const [curtainMode, setCurtainMode] = useState<CurtainMode>('none');
   const [strokes, setStrokes] = useState<InkStroke[]>([]);
   const [inkVisible, setInkVisible] = useState<boolean>(true);
   const [pointerTool, setPointerTool] = useState<PointerTool>('none');
+  const [laserColor, setLaserColor] = useState<string>('#ef4444');
   const [laserPoint, setLaserPoint] = useState<NormalizedPoint | null>(null);
   const [spotlightPoint, setSpotlightPoint] = useState<NormalizedPoint | null>(null);
   const [spotlightRadius, setSpotlightRadius] = useState<number>(0.16);
+  const [zoomState, setZoomState] = useState<ZoomState>(DEFAULT_ZOOM_STATE);
+  const [qrOverlay, setQrOverlay] = useState<QrOverlayState>({ visible: false, url: '' });
+  const [audienceProgressBar, setAudienceProgressBar] = useState<boolean>(false);
 
   if (!engineRef.current) {
     engineRef.current = new PdfEngine();
@@ -118,9 +127,10 @@ export function AudienceView() {
         const stored = await storageService.getDeck(targetDeckId);
         if (stored && stored.bytes && engineRef.current) {
           try {
-            await engineRef.current.loadDeck(stored.bytes, stored.fileName);
+            const loadedMeta = await engineRef.current.loadDeck(stored.bytes, stored.fileName);
             loadedDeckIdRef.current = targetDeckId;
             setDeckId(targetDeckId);
+            setTotalPages((prev) => (loadedMeta.numPages > 0 ? loadedMeta.numPages : prev));
             setRenderVersion((v) => v + 1);
             if (!frozenRef.current && pendingPageRef.current >= 1) {
               setCurrentPage(pendingPageRef.current);
@@ -233,10 +243,14 @@ export function AudienceView() {
       if (!active || !snap || !snap.deckId) return;
       frozenRef.current = snap.frozen;
       pendingPageRef.current = snap.currentPage;
+      setTotalPages(snap.totalPages ?? 0);
       setCropMode(snap.cropMode);
       setSwapSplitHalves(snap.swapSplitHalves);
       setCurtainMode(snap.curtainMode);
       setCurrentPage(snap.currentPage);
+      if (snap.audienceProgressBar !== undefined) {
+        setAudienceProgressBar(Boolean(snap.audienceProgressBar));
+      }
       void loadDeckFromStorage(snap.deckId, snap.currentPage);
     });
 
@@ -249,14 +263,27 @@ export function AudienceView() {
           frozenRef.current = msg.frozen;
           pendingPageRef.current = msg.currentPage;
 
+          setTotalPages(msg.totalPages);
           setCropMode(msg.cropMode);
           setSwapSplitHalves(msg.swapSplitHalves);
           setCurtainMode(msg.curtainMode);
           setInkVisible(msg.inkVisible);
           setPointerTool(msg.pointerTool);
+          if (msg.laserColor) {
+            setLaserColor(msg.laserColor);
+          }
           setLaserPoint(msg.laserPoint);
           setSpotlightPoint(msg.spotlightPoint);
           setSpotlightRadius(msg.spotlightRadius);
+          if (msg.zoomState) {
+            setZoomState(msg.zoomState);
+          }
+          if (msg.qrOverlay) {
+            setQrOverlay(msg.qrOverlay);
+          }
+          if (msg.audienceProgressBar !== undefined) {
+            setAudienceProgressBar(msg.audienceProgressBar);
+          }
 
           if (!msg.frozen || !wasFrozen || loadedDeckIdRef.current === null) {
             setCurrentPage(msg.currentPage);
@@ -272,6 +299,7 @@ export function AudienceView() {
           } else {
             loadedDeckIdRef.current = null;
             setDeckId(null);
+            setTotalPages(0);
           }
           break;
         }
@@ -287,6 +315,7 @@ export function AudienceView() {
           if (!frozenRef.current) {
             setCurrentPage(msg.page);
             setStrokes(strokesByPageRef.current[msg.page] ?? []);
+            setZoomState(DEFAULT_ZOOM_STATE);
           }
           break;
         }
@@ -310,6 +339,9 @@ export function AudienceView() {
         }
         case 'LASER_MOVE': {
           setPointerTool(msg.active ? 'laser' : 'none');
+          if (msg.color) {
+            setLaserColor(msg.color);
+          }
           setLaserPoint(msg.active ? msg.point : null);
           break;
         }
@@ -317,6 +349,18 @@ export function AudienceView() {
           setPointerTool(msg.active ? 'spotlight' : 'none');
           setSpotlightPoint(msg.active ? msg.point : null);
           setSpotlightRadius(msg.radius);
+          break;
+        }
+        case 'ZOOM_STATE': {
+          setZoomState(msg.zoom);
+          break;
+        }
+        case 'QR_OVERLAY': {
+          setQrOverlay(msg.overlay);
+          break;
+        }
+        case 'PROGRESS_BAR': {
+          setAudienceProgressBar(msg.visible);
           break;
         }
         case 'STROKE_ADD':
@@ -404,6 +448,15 @@ export function AudienceView() {
   }, [sessionId, toggleFullscreen, exitFullscreen]);
 
   const { slideRegion } = resolveSplitCropRegions(cropMode, swapSplitHalves);
+  const qrSvgMarkup = useMemo(() => {
+    if (!qrOverlay.visible || qrOverlay.url.trim().length === 0) {
+      return '';
+    }
+    return generateQrSvg(qrOverlay.url);
+  }, [qrOverlay.visible, qrOverlay.url]);
+
+  const progressPct =
+    totalPages > 0 ? Math.max(0, Math.min(100, (currentPage / totalPages) * 100)) : 0;
 
   return (
     <main
@@ -426,6 +479,7 @@ export function AudienceView() {
           interactive={false}
           showLinks={false}
           pointerTool={pointerTool}
+          laserColor={laserColor}
           laserPoint={laserPoint}
           spotlightPoint={spotlightPoint}
           spotlightRadius={spotlightRadius}
@@ -433,11 +487,54 @@ export function AudienceView() {
           inkVisible={inkVisible}
           curtainMode={curtainMode}
           isAudience={true}
+          zoomState={zoomState}
         />
       ) : (
         <div className="text-center">
           <h1 className="text-xl font-semibold text-slate-200">{t.audienceStandbyTitle}</h1>
           <p className="mt-2 text-sm text-slate-400">{t.audienceStandbySubtitle}</p>
+        </div>
+      )}
+
+      {/* Q&A QR Code Instant Overlay */}
+      {curtainMode === 'none' && qrOverlay.visible && qrSvgMarkup && (
+        <div
+          data-testid="audience-qr-overlay"
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-6"
+        >
+          <div className="flex max-w-sm flex-col items-center rounded-2xl border border-slate-700 bg-white p-6 text-slate-900 shadow-2xl">
+            <div
+              data-testid="audience-qr-svg"
+              className="h-56 w-56 [&>svg]:h-full [&>svg]:w-full"
+              dangerouslySetInnerHTML={{ __html: qrSvgMarkup }}
+            />
+            {qrOverlay.label && qrOverlay.label.trim().length > 0 && (
+              <div className="mt-3 text-center text-sm font-semibold text-slate-900">
+                {qrOverlay.label}
+              </div>
+            )}
+            <div className="mt-1.5 max-w-xs break-all text-center font-mono text-xs text-slate-600">
+              {qrOverlay.url}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ultra-thin 2px Audience Progress Bar (default OFF) */}
+      {curtainMode === 'none' && audienceProgressBar && deckId && totalPages > 0 && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed right-0 bottom-0 left-0 z-30 h-[2px] bg-white/15"
+        >
+          <div
+            data-testid="audience-progress-bar"
+            role="progressbar"
+            aria-valuenow={currentPage}
+            aria-valuemin={1}
+            aria-valuemax={totalPages}
+            style={{ width: `${progressPct}%` }}
+            className="h-full bg-white/85 transition-[width] duration-200"
+          />
         </div>
       )}
 
@@ -447,7 +544,7 @@ export function AudienceView() {
           type="button"
           onClick={enterFullscreen}
           data-testid="fullscreen-prompt"
-          className="fixed bottom-2 right-2 z-20 rounded bg-slate-900/60 px-2.5 py-1 text-[11px] text-slate-400 transition-opacity hover:bg-slate-800 hover:text-slate-200"
+          className="fixed right-2 bottom-2.5 z-20 rounded bg-slate-900/60 px-2.5 py-1 text-[11px] text-slate-400 transition-opacity hover:bg-slate-800 hover:text-slate-200"
         >
           {t.fullscreenPrompt}
         </button>

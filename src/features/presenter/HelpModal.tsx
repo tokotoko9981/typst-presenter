@@ -149,6 +149,8 @@ export function HelpModal({ initialTab = 'shortcuts', onClose }: HelpModalProps)
                 [['Esc'], t.shortcutEscClear],
                 [['F'], t.shortcutFreeze],
                 [['L'], t.shortcutLaser],
+                [['Z'], t.shortcutZoom],
+                [['0'], t.shortcutZoomReset],
                 [['D'], t.shortcutPen],
                 [['S'], t.shortcutSpotlight],
                 [['C'], t.shortcutClearInk],

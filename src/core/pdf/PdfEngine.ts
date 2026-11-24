@@ -85,6 +85,14 @@ export interface PdfEngineOptions {
 const PDF_TEXT_ANNOTATION_TYPE = 1;
 const PDF_LINK_ANNOTATION_TYPE = 2;
 const ALLOWED_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+const MAX_PREFETCH_ENTRIES = 4;
+
+interface PrefetchEntry {
+  canvas: HTMLCanvasElement;
+  cssWidth: number;
+  cssHeight: number;
+  pageNumber: number;
+}
 
 function sanitizeLinkUrl(rawUrl: unknown): string | undefined {
   if (typeof rawUrl !== 'string') {
@@ -196,6 +204,8 @@ export class PdfEngine {
   private preRenderTaskCount = 0;
   private inFlightLinkExtractCount = 0;
   private inFlightCleanupPromise: Promise<void> | null = null;
+  private readonly prefetchCache = new Map<string, PrefetchEntry>();
+  private readonly prefetchControllers = new Map<string, AbortController>();
 
   constructor(options: PdfEngineOptions = {}) {
     this.pdfjs = options.pdfjs ?? (defaultPdfjs as unknown as PdfJsLike);
@@ -505,6 +515,38 @@ export class PdfEngine {
     this.trackedCanvases.add(canvas);
     const nextGen = (this.canvasRenderGeneration.get(canvas) ?? 0) + 1;
     this.canvasRenderGeneration.set(canvas, nextGen);
+
+    const cacheKey = this.buildPrefetchKey(pageNumber, options);
+    const cached = this.prefetchCache.get(cacheKey);
+    if (cached && cached.canvas !== canvas && cached.canvas.width > 0 && cached.canvas.height > 0) {
+      const ctx = canvas.getContext('2d');
+      if (ctx && typeof ctx.drawImage === 'function') {
+        const active = this.activeRenderTasks.get(canvas);
+        if (active) {
+          this.activeRenderTasks.delete(canvas);
+          this.activeRenderTaskSet.delete(active);
+          try {
+            active.cancel();
+          } catch {
+            // Ignore cancel errors
+          }
+        }
+        canvas.width = cached.canvas.width;
+        canvas.height = cached.canvas.height;
+        canvas.style.width = `${cached.cssWidth}px`;
+        canvas.style.height = `${cached.cssHeight}px`;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(cached.canvas, 0, 0);
+        // Touch LRU order
+        this.prefetchCache.delete(cacheKey);
+        this.prefetchCache.set(cacheKey, cached);
+        return {
+          cssWidth: cached.cssWidth,
+          cssHeight: cached.cssHeight,
+          pageNumber: cached.pageNumber,
+        };
+      }
+    }
 
     this.inFlightRenderCount += 1;
     this.preRenderTaskCount += 1;
@@ -828,7 +870,122 @@ export class PdfEngine {
     page.cleanup();
   }
 
+  private buildPrefetchKey(
+    pageNumber: number,
+    options: Pick<RenderOptions, 'targetWidth' | 'targetHeight' | 'dpr' | 'cropRegion' | 'zoomScale'>,
+  ): string {
+    const zoom =
+      typeof options.zoomScale === 'number' && Number.isFinite(options.zoomScale)
+        ? options.zoomScale
+        : 1;
+    return `${pageNumber}|${options.cropRegion}|${Math.round(options.targetWidth)}x${Math.round(options.targetHeight)}|${options.dpr.toFixed(2)}|${zoom.toFixed(2)}`;
+  }
+
+  private setPrefetchEntry(key: string, entry: PrefetchEntry): void {
+    if (this.prefetchCache.has(key)) {
+      this.prefetchCache.delete(key);
+    }
+    this.prefetchCache.set(key, entry);
+    while (this.prefetchCache.size > MAX_PREFETCH_ENTRIES) {
+      const oldestKey = this.prefetchCache.keys().next().value;
+      if (!oldestKey) break;
+      const oldest = this.prefetchCache.get(oldestKey);
+      this.prefetchCache.delete(oldestKey);
+      if (oldest) {
+        this.releaseCanvas(oldest.canvas);
+      }
+    }
+  }
+
+  prefetchAdjacentPages(currentPage: number, options: Omit<RenderOptions, 'signal'>): void {
+    const doc = this.doc;
+    if (!doc || typeof document === 'undefined') {
+      return;
+    }
+    if ((options.zoomScale ?? 1) > 1.01) {
+      return;
+    }
+
+    const targets = [currentPage + 1, currentPage - 1].filter(
+      (p) => Number.isInteger(p) && p >= 1 && p <= doc.numPages,
+    );
+    const desiredKeys = new Map<string, number>();
+    for (const p of targets) {
+      desiredKeys.set(this.buildPrefetchKey(p, options), p);
+    }
+
+    for (const [key, ctrl] of Array.from(this.prefetchControllers.entries())) {
+      if (!desiredKeys.has(key)) {
+        ctrl.abort();
+        this.prefetchControllers.delete(key);
+      }
+    }
+
+    const missing = Array.from(desiredKeys.entries()).filter(
+      ([key]) => !this.prefetchCache.has(key) && !this.prefetchControllers.has(key),
+    );
+    if (missing.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      for (const [key, targetPage] of missing) {
+        if (this.doc !== doc || this.prefetchCache.has(key)) continue;
+        const controller = new AbortController();
+        this.prefetchControllers.set(key, controller);
+        const offscreen = document.createElement('canvas');
+        try {
+          const res = await this.renderPageToCanvas(targetPage, offscreen, {
+            ...options,
+            signal: controller.signal,
+          });
+          if (res && !controller.signal.aborted && this.doc === doc && offscreen.width > 0) {
+            this.setPrefetchEntry(key, {
+              canvas: offscreen,
+              cssWidth: res.cssWidth,
+              cssHeight: res.cssHeight,
+              pageNumber: res.pageNumber,
+            });
+          } else {
+            this.releaseCanvas(offscreen);
+          }
+        } catch {
+          this.releaseCanvas(offscreen);
+        } finally {
+          if (this.prefetchControllers.get(key) === controller) {
+            this.prefetchControllers.delete(key);
+          }
+        }
+      }
+    })();
+  }
+
+  getPrefetchCacheSize(): number {
+    return this.prefetchCache.size;
+  }
+
+  hasPrefetchedPage(pageNumber: number): boolean {
+    for (const entry of this.prefetchCache.values()) {
+      if (entry.pageNumber === pageNumber && entry.canvas.width > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  clearPrefetchCache(): void {
+    for (const ctrl of this.prefetchControllers.values()) {
+      ctrl.abort();
+    }
+    this.prefetchControllers.clear();
+    for (const entry of this.prefetchCache.values()) {
+      this.releaseCanvas(entry.canvas);
+    }
+    this.prefetchCache.clear();
+  }
+
   async cleanup(): Promise<void> {
+    this.clearPrefetchCache();
     const doc = this.doc;
     if (!doc) {
       return;
@@ -878,6 +1035,7 @@ export class PdfEngine {
 
   private async teardownResources(): Promise<void> {
     this.abortInFlightFetch();
+    this.clearPrefetchCache();
     for (const canvas of Array.from(this.trackedCanvases)) {
       this.releaseCanvas(canvas);
     }

@@ -104,8 +104,14 @@ npm run tauri:build
 
 ## サンプル資料（`examples/`）
 
-- [`examples/sample-deck.typ`](./examples/sample-deck.typ) / [`public/sample-deck.pdf`](./public/sample-deck.pdf): アプリ内 **Load Sample Deck** で読み込まれるサンプルスライド。
-- [`examples/lt-typst-presenter.typ`](./examples/lt-typst-presenter.typ) / [`examples/lt-typst-presenter.pdf`](./examples/lt-typst-presenter.pdf) / [`examples/lt-typst-presenter-notes.md`](./examples/lt-typst-presenter-notes.md): Typst Presenter 紹介用の 5 分間 LT スライド ＆ 発表者ノート。
+- [`examples/lt-typst-presenter.typ`](./examples/lt-typst-presenter.typ) / [`examples/lt-typst-presenter.pdf`](./examples/lt-typst-presenter.pdf) / [`examples/lt-typst-presenter-notes.md`](./examples/lt-typst-presenter-notes.md): Typst Presenter 紹介用の 9 枚構成・5 分間 LT スライド ＆ 発表者ノート（アプリ内 **サンプル読込 / Load Sample Deck** で [`public/sample-deck.pdf`](./public/sample-deck.pdf) ＆ [`public/sample-notes.md`](./public/sample-notes.md) として読込可能）。
+- [`examples/sample-deck.typ`](./examples/sample-deck.typ): 初期テスト向けの汎用サンプルソース。
+
+---
+
+## 開発引き継ぎ・次期拡張計画
+
+現在のモジュール構成・テスト実行上の制約（PowerShell / Vitest / Playwright）・E2E セレクタ契約・次期タスク（Typst 直接コンパイル、単一ファイル対応、黒画面アイコン／UI オーバーレイ改善、発表チャイム SE 等）は [**docs/HANDOFF.md**](./docs/HANDOFF.md) にまとめています。
 
 ---
 

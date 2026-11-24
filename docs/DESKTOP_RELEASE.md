@@ -74,8 +74,8 @@ npm run tauri:dev
 npm run tauri:build
 ```
 
-- `npm run tauri:dev` は内部で `npx --yes @tauri-apps/cli@2 dev` を呼び出し、`src-tauri/tauri.conf.json` の `beforeDevCommand`（`npm run dev`, `http://localhost:5173`）を起動した状態で Tauri ウィンドウを開きます。
-- `npm run tauri:build` は `npx --yes @tauri-apps/cli@2 build` を実行し、`beforeBuildCommand`（`npm run build`）で `dist/` を生成したあと、OS ごとのインストーラー・バンドルを `src-tauri/target/release/bundle/` 配下に出力します。
+- `npm run tauri:dev` は [`scripts/run-tauri.mjs`](../scripts/run-tauri.mjs) 経由で `npx --yes @tauri-apps/cli@2 dev` を呼び出し、Windows の既存ターミナルで未反映になりがちな `~/.cargo/bin` を自動補完するとともに、`src-tauri/tauri.conf.json` の開発ポート（`5173`）が空き状態かを事前チェックしてから `beforeDevCommand`（`npm run dev`, `http://localhost:5173`）と Tauri ウィンドウを起動します。
+- `npm run tauri:build` も同じく [`scripts/run-tauri.mjs`](../scripts/run-tauri.mjs) 経由で `npx --yes @tauri-apps/cli@2 build` を実行し、`beforeBuildCommand`（`npm run build`）で `dist/` を生成したあと、OS ごとのインストーラー・バンドルを `src-tauri/target/release/bundle/` 配下に出力します。
 - フロントエンド（[`src/core/platform/DesktopBridge.ts`](../src/core/platform/DesktopBridge.ts)）は `@tauri-apps/api` パッケージへ静的依存せず `window.__TAURI_INTERNALS__?.invoke` 経由で Tauri コマンドを呼び出し、ブラウザ実行時は Web Window Management API（`getScreenDetails`）や `window.open()` へ自動フォールバックします。
 
 ---

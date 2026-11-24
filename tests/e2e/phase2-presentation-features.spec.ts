@@ -74,12 +74,31 @@ test.describe('Phase 2 — Chime, Zoom/Pan, Laser Color, Q&A QR, and Audience Pr
 
     const presenterZoomLayer = page.getByTestId('slide-zoom-layer');
     const audienceZoomLayer = audiencePage.getByTestId('slide-zoom-layer');
+    const presenterDetailCanvas = page
+      .getByTestId('presenter-stage')
+      .getByTestId('slide-zoom-detail-canvas');
+    const audienceDetailCanvas = audiencePage
+      .getByTestId('audience-stage')
+      .getByTestId('slide-zoom-detail-canvas');
     await expect(async () => {
       const pScale = Number(await presenterZoomLayer.getAttribute('data-zoom-scale'));
       const aScale = Number(await audienceZoomLayer.getAttribute('data-zoom-scale'));
       expect(pScale).toBeGreaterThan(1.05);
       expect(aScale).toBeCloseTo(pScale, 2);
     }).toPass({ timeout: 5_000 });
+
+    await expect(presenterDetailCanvas).toHaveAttribute('data-detail-active', 'true', {
+      timeout: 5_000,
+    });
+    await expect(presenterDetailCanvas).toHaveAttribute('data-detail-exact', 'true', {
+      timeout: 5_000,
+    });
+    await expect(audienceDetailCanvas).toHaveAttribute('data-detail-active', 'true', {
+      timeout: 5_000,
+    });
+    await expect(audienceDetailCanvas).toHaveAttribute('data-detail-exact', 'true', {
+      timeout: 5_000,
+    });
 
     // Drag to pan
     const beforePanX = Number(await presenterZoomLayer.getAttribute('data-zoom-pan-x'));
@@ -105,6 +124,8 @@ test.describe('Phase 2 — Chime, Zoom/Pan, Laser Color, Q&A QR, and Audience Pr
     await pressShortcut(page, '0');
     await expect(presenterZoomLayer).toHaveAttribute('data-zoom-scale', '1.00');
     await expect(audienceZoomLayer).toHaveAttribute('data-zoom-scale', '1.00');
+    await expect(presenterDetailCanvas).toHaveAttribute('data-detail-active', 'false');
+    await expect(audienceDetailCanvas).toHaveAttribute('data-detail-active', 'false');
 
     // Multi-digit jump containing '0' still works (press 1, 0, Enter on 4-slide deck stays/clamps safely; test 2+Enter)
     await pressShortcut(page, '2');
@@ -124,6 +145,8 @@ test.describe('Phase 2 — Chime, Zoom/Pan, Laser Color, Q&A QR, and Audience Pr
     await pressShortcut(page, 'ArrowRight');
     await expect(presenterZoomLayer).toHaveAttribute('data-zoom-scale', '1.00');
     await expect(audienceZoomLayer).toHaveAttribute('data-zoom-scale', '1.00');
+    await expect(presenterDetailCanvas).toHaveAttribute('data-detail-active', 'false');
+    await expect(audienceDetailCanvas).toHaveAttribute('data-detail-active', 'false');
 
     presenterErrors.assertNoErrors();
     audienceErrors.assertNoErrors();

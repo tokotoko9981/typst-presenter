@@ -80,3 +80,26 @@ export function panByNormalizedDelta(
     panY: safeCurrent.panY + deltaNormY,
   });
 }
+
+export interface RelativeZoomTransform {
+  relScale: number;
+  deltaPanX: number;
+  deltaPanY: number;
+  isExact: boolean;
+}
+
+export function computeRelativeZoomTransform(
+  live: ZoomState,
+  rendered: ZoomState,
+): RelativeZoomTransform {
+  const safeRenderedScale =
+    rendered.scale > 0 && Number.isFinite(rendered.scale) ? rendered.scale : 1;
+  const relScale = live.scale / safeRenderedScale;
+  const deltaPanX = live.panX - relScale * rendered.panX;
+  const deltaPanY = live.panY - relScale * rendered.panY;
+  const isExact =
+    Math.abs(relScale - 1) < 1e-4 &&
+    Math.abs(deltaPanX) < 1e-4 &&
+    Math.abs(deltaPanY) < 1e-4;
+  return { relScale, deltaPanX, deltaPanY, isExact };
+}

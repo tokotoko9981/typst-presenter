@@ -81,7 +81,7 @@ export function getCropBounds(cropRegion: CropRegion): CropBounds {
 export function computeRenderPlan(
   baseWidth: number,
   baseHeight: number,
-  options: Pick<RenderOptions, 'targetWidth' | 'targetHeight' | 'dpr' | 'cropRegion' | 'zoomScale'>,
+  options: Pick<RenderOptions, 'targetWidth' | 'targetHeight' | 'dpr' | 'cropRegion' | 'zoomScale' | 'zoomView'>,
 ): RenderPlan {
   const safeBaseW = baseWidth > 0 && Number.isFinite(baseWidth) ? baseWidth : 1;
   const safeBaseH = baseHeight > 0 && Number.isFinite(baseHeight) ? baseHeight : 1;
@@ -95,18 +95,56 @@ export function computeRenderPlan(
   const regionHeightAt1 = safeBaseH * bounds.h;
 
   const rawScale = Math.min(safeTargetW / regionWidthAt1, safeTargetH / regionHeightAt1);
-  const scale = Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
+  const baseScale = Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1;
 
-  const cssWidth = Math.max(1, Math.floor(regionWidthAt1 * scale));
-  const cssHeight = Math.max(1, Math.floor(regionHeightAt1 * scale));
+  const cssWidth = Math.max(1, Math.floor(regionWidthAt1 * baseScale));
+  const cssHeight = Math.max(1, Math.floor(regionHeightAt1 * baseScale));
 
   const clampedDpr =
     Number.isFinite(options.dpr) && options.dpr > 0 ? Math.min(options.dpr, MAX_DPR) : 1;
+  const edgeCapScale = Math.min(MAX_CANVAS_EDGE / cssWidth, MAX_CANVAS_EDGE / cssHeight);
+
+  const zoomView = options.zoomView;
+  if (zoomView && Number.isFinite(zoomView.scale) && zoomView.scale > 1.001) {
+    const zScale = Math.max(1, Math.min(4, zoomView.scale));
+    const panX = Number.isFinite(zoomView.panX) ? zoomView.panX : 0;
+    const panY = Number.isFinite(zoomView.panY) ? zoomView.panY : 0;
+    const renderScale = baseScale * zScale;
+    const outputScale = Math.max(
+      1 / Math.max(cssWidth, cssHeight),
+      Math.min(clampedDpr, edgeCapScale),
+    );
+    const canvasWidth = Math.min(MAX_CANVAS_EDGE, Math.max(1, Math.floor(cssWidth * outputScale)));
+    const canvasHeight = Math.min(MAX_CANVAS_EDGE, Math.max(1, Math.floor(cssHeight * outputScale)));
+    const offsetX = -(bounds.x * safeBaseW * renderScale + cssWidth * (0.5 * zScale - 0.5 - panX));
+    const offsetY = -(bounds.y * safeBaseH * renderScale + cssHeight * (0.5 * zScale - 0.5 - panY));
+    const transform: [number, number, number, number, number, number] = [
+      outputScale,
+      0,
+      0,
+      outputScale,
+      0,
+      0,
+    ];
+
+    return {
+      scale: renderScale,
+      outputScale,
+      cssWidth,
+      cssHeight,
+      canvasWidth,
+      canvasHeight,
+      offsetX,
+      offsetY,
+      transform,
+    };
+  }
+
+  const scale = baseScale;
   const clampedZoom =
     typeof options.zoomScale === 'number' && Number.isFinite(options.zoomScale)
       ? Math.max(1, Math.min(4, options.zoomScale))
       : 1;
-  const edgeCapScale = Math.min(MAX_CANVAS_EDGE / cssWidth, MAX_CANVAS_EDGE / cssHeight);
   const outputScale = Math.max(
     1 / Math.max(cssWidth, cssHeight),
     Math.min(clampedDpr * clampedZoom, edgeCapScale),

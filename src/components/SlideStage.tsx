@@ -11,6 +11,7 @@ import type {
 } from '../core/sync/types.ts';
 import {
   DEFAULT_ZOOM_STATE,
+  computeRelativeZoomTransform,
   isZoomed,
   panByNormalizedDelta,
   zoomAtPoint,
@@ -111,11 +112,16 @@ export function SlideStage({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stageFrameRef = useRef<HTMLDivElement | null>(null);
   const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const zoomDetailCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const laserTrailRef = useRef<Array<{ x: number; y: number; ts: number }>>([]);
   const [trailTick, setTrailTick] = useState<number>(0);
   const [spotlightPinned, setSpotlightPinned] = useState<boolean>(false);
-  const [settledZoomScale, setSettledZoomScale] = useState<number>(1);
+  const [settledZoom, setSettledZoom] = useState<ZoomState | null>(null);
+  const [detailRendered, setDetailRendered] = useState<{
+    renderKey: string;
+    zoom: ZoomState;
+  } | null>(null);
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panDragRef = useRef<{ lastX: number; lastY: number; zoom: ZoomState } | null>(null);
 
@@ -157,19 +163,28 @@ export function SlideStage({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
 
-  // Debounce high-resolution PDF re-render when zoomed so math/tables stay crisp
+  const renderKey = containerSize
+    ? `${deckId ?? ''}|${pageNumber}|${cropRegion}|${containerSize.width}x${containerSize.height}`
+    : '';
+
+  // Clear detail layer immediately when zoom resets or slide/viewport changes
   useEffect(() => {
     if (!isZoomed(zoomState)) {
-      setSettledZoomScale(1);
+      setSettledZoom(null);
+      setDetailRendered(null);
       return undefined;
     }
     const timer = setTimeout(() => {
-      setSettledZoomScale(zoomState.scale);
-    }, 180);
+      setSettledZoom(zoomState);
+    }, 140);
     return () => clearTimeout(timer);
   }, [zoomState.scale, zoomState.panX, zoomState.panY]);
 
-  // Render PDF page offscreen and atomically blit to visible canvas on completion
+  useEffect(() => {
+    setDetailRendered(null);
+  }, [renderKey]);
+
+  // Render 1x base PDF page offscreen and atomically blit to visible canvas on completion
   useEffect(() => {
     const visibleCanvas = pdfCanvasRef.current;
     if (
@@ -195,7 +210,6 @@ export function SlideStage({
         targetHeight,
         dpr,
         cropRegion,
-        zoomScale: settledZoomScale,
         signal: controller.signal,
       })
       .then((res) => {
@@ -212,14 +226,12 @@ export function SlideStage({
             }
           }
           setRenderedSize({ width: res.cssWidth, height: res.cssHeight });
-          if (settledZoomScale <= 1.01) {
-            engine.prefetchAdjacentPages(pageNumber, {
-              targetWidth,
-              targetHeight,
-              dpr,
-              cropRegion,
-            });
-          }
+          engine.prefetchAdjacentPages(pageNumber, {
+            targetWidth,
+            targetHeight,
+            dpr,
+            cropRegion,
+          });
         }
       })
       .catch(() => {
@@ -236,7 +248,73 @@ export function SlideStage({
     cropRegion,
     containerSize?.width,
     containerSize?.height,
-    settledZoomScale,
+  ]);
+
+  // Render crisp 1:1 native DPR visible-viewport detail canvas when zoomed & settled
+  useEffect(() => {
+    const detailCanvas = zoomDetailCanvasRef.current;
+    if (
+      !engine ||
+      !deckId ||
+      !engine.isLoaded() ||
+      !detailCanvas ||
+      !containerSize ||
+      pageNumber < 1 ||
+      !settledZoom ||
+      !isZoomed(settledZoom)
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const offscreenCanvas = document.createElement('canvas');
+    const targetWidth = Math.max(120, containerSize.width - 8);
+    const targetHeight = Math.max(80, containerSize.height - 8);
+    const activeRenderKey = renderKey;
+    const targetZoom = settledZoom;
+
+    void engine
+      .renderPageToCanvas(pageNumber, offscreenCanvas, {
+        targetWidth,
+        targetHeight,
+        dpr,
+        cropRegion,
+        zoomView: targetZoom,
+        signal: controller.signal,
+      })
+      .then((res) => {
+        if (res && !controller.signal.aborted) {
+          if (offscreenCanvas.width > 0 && offscreenCanvas.height > 0) {
+            detailCanvas.width = offscreenCanvas.width;
+            detailCanvas.height = offscreenCanvas.height;
+            detailCanvas.style.width = `${res.cssWidth}px`;
+            detailCanvas.style.height = `${res.cssHeight}px`;
+            const ctx = detailCanvas.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, detailCanvas.width, detailCanvas.height);
+              ctx.drawImage(offscreenCanvas, 0, 0);
+            }
+          }
+          setDetailRendered({ renderKey: activeRenderKey, zoom: targetZoom });
+        }
+      })
+      .catch(() => {
+        // Ignore cancelled or superseded render errors
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [
+    engine,
+    deckId,
+    pageNumber,
+    cropRegion,
+    containerSize?.width,
+    containerSize?.height,
+    renderKey,
+    settledZoom,
   ]);
 
   // Extract clickable links for the active page & cropRegion
@@ -352,19 +430,30 @@ export function SlideStage({
     };
   }, [interactive, pointerTool, onSpotlightRadiusDelta, zoomMode, zoomState, onZoomChange]);
 
-  // Draw annotations (Spotlight, Pen Strokes, Laser Pointer) onto overlay canvas
+  // Draw annotations (Spotlight, Pen Strokes, Laser Pointer) onto HiDPI overlay canvas
   useEffect(() => {
     const overlay = overlayCanvasRef.current;
     if (!overlay) return;
 
     const w = Math.max(1, renderedSize.width);
     const h = Math.max(1, renderedSize.height);
-    if (overlay.width !== w) overlay.width = w;
-    if (overlay.height !== h) overlay.height = h;
+    const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2.5);
+    const pixelW = Math.max(1, Math.round(w * dpr));
+    const pixelH = Math.max(1, Math.round(h * dpr));
+    if (overlay.width !== pixelW) overlay.width = pixelW;
+    if (overlay.height !== pixelH) overlay.height = pixelH;
 
     const ctx = overlay.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, w, h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, pixelW, pixelH);
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    if (isZoomed(zoomState)) {
+      ctx.translate(w * (0.5 + zoomState.panX), h * (0.5 + zoomState.panY));
+      ctx.scale(zoomState.scale, zoomState.scale);
+      ctx.translate(-w * 0.5, -h * 0.5);
+    }
 
     // 1. Crisp optical Spotlight mask (tight C1-smoothstep radial gradient, zero Mach bands / double ring)
     const activeSpotlight =
@@ -483,9 +572,13 @@ export function SlideStage({
       ctx.fill();
       ctx.restore();
     }
+    ctx.restore();
   }, [
     renderedSize.width,
     renderedSize.height,
+    zoomState.scale,
+    zoomState.panX,
+    zoomState.panY,
     strokes,
     activeDraftStroke,
     inkVisible,
@@ -665,6 +758,12 @@ export function SlideStage({
   const zoomLayerTransform = zoomed
     ? `translate3d(${(zoomState.panX * 100).toFixed(4)}%, ${(zoomState.panY * 100).toFixed(4)}%, 0) scale(${zoomState.scale.toFixed(4)})`
     : undefined;
+  const showDetail = zoomed && detailRendered !== null && detailRendered.renderKey === renderKey;
+  const detailRel = showDetail ? computeRelativeZoomTransform(zoomState, detailRendered.zoom) : null;
+  const detailTransform =
+    showDetail && detailRel && !detailRel.isExact
+      ? `translate3d(${(detailRel.deltaPanX * 100).toFixed(4)}%, ${(detailRel.deltaPanY * 100).toFixed(4)}%, 0) scale(${detailRel.relScale.toFixed(4)})`
+      : undefined;
 
   return (
     <div
@@ -716,84 +815,105 @@ export function SlideStage({
             data-testid={canvasTestId}
             className="block shadow-lg"
           />
-
-          <canvas
-            ref={overlayCanvasRef}
-            data-testid="slide-overlay-canvas"
-            data-laser-color={laserColor}
-            aria-label="Slide annotation overlay"
-            style={{
-              width: `${renderedSize.width}px`,
-              height: `${renderedSize.height}px`,
-            }}
-            className={`pointer-events-none absolute inset-0 ${
-              pointerTool === 'pen' ? 'cursor-crosshair' : ''
-            }`}
-          />
-
-          {showLinks && links.length > 0 && (
-            <div
-              data-testid="pdf-link-layer"
-              className={`absolute inset-0 ${
-                pointerTool === 'none' ? 'pointer-events-auto' : 'pointer-events-none'
-              }`}
-            >
-              {links.map((link, idx) => {
-                const [x1, y1, x2, y2] = link.rect;
-                const style: React.CSSProperties = {
-                  left: `${x1 * 100}%`,
-                  top: `${y1 * 100}%`,
-                  width: `${Math.max(1, (x2 - x1) * 100)}%`,
-                  height: `${Math.max(1, (y2 - y1) * 100)}%`,
-                };
-
-                if (link.url) {
-                  return (
-                    <a
-                      key={`ext-${idx}-${link.url}`}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={link.url}
-                      aria-label={link.url}
-                      style={style}
-                      className="absolute block cursor-pointer rounded transition-colors hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                    >
-                      <span className="sr-only">{link.url}</span>
-                    </a>
-                  );
-                }
-
-                if (link.destPage !== undefined) {
-                  const targetPage = link.destPage;
-                  return (
-                    <button
-                      key={`int-${idx}-${targetPage}`}
-                      type="button"
-                      role="link"
-                      data-dest-page={targetPage}
-                      data-link-dest={targetPage}
-                      title={`Jump to Slide ${targetPage}`}
-                      aria-label={`Jump to Slide ${targetPage}`}
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        onNavigatePage?.(targetPage);
-                      }}
-                      style={style}
-                      className="absolute block cursor-pointer rounded transition-colors hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    >
-                      <span className="sr-only">
-                        Jump to Slide {targetPage} Back to Slide {targetPage}
-                      </span>
-                    </button>
-                  );
-                }
-
-                return null;
-              })}
-            </div>
-          )}
         </div>
+
+        <canvas
+          ref={zoomDetailCanvasRef}
+          data-testid="slide-zoom-detail-canvas"
+          data-detail-active={showDetail ? 'true' : 'false'}
+          data-detail-scale={showDetail ? detailRendered.zoom.scale.toFixed(2) : '1.00'}
+          data-detail-exact={showDetail && detailRel?.isExact ? 'true' : 'false'}
+          style={{
+            width: `${renderedSize.width}px`,
+            height: `${renderedSize.height}px`,
+            transformOrigin: '50% 50%',
+            transform: detailTransform,
+          }}
+          className={`pointer-events-none absolute inset-0 block ${
+            showDetail ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+
+        <canvas
+          ref={overlayCanvasRef}
+          data-testid="slide-overlay-canvas"
+          data-laser-color={laserColor}
+          aria-label="Slide annotation overlay"
+          style={{
+            width: `${renderedSize.width}px`,
+            height: `${renderedSize.height}px`,
+          }}
+          className={`pointer-events-none absolute inset-0 ${
+            pointerTool === 'pen' ? 'cursor-crosshair' : ''
+          }`}
+        />
+
+        {showLinks && links.length > 0 && (
+          <div
+            data-testid="pdf-link-layer"
+            style={{
+              transformOrigin: '50% 50%',
+              transform: zoomLayerTransform,
+            }}
+            className="pointer-events-none absolute inset-0"
+          >
+            {links.map((link, idx) => {
+              const [x1, y1, x2, y2] = link.rect;
+              const style: React.CSSProperties = {
+                left: `${x1 * 100}%`,
+                top: `${y1 * 100}%`,
+                width: `${Math.max(1, (x2 - x1) * 100)}%`,
+                height: `${Math.max(1, (y2 - y1) * 100)}%`,
+              };
+              const linkPointerClass =
+                pointerTool === 'none' ? 'pointer-events-auto' : 'pointer-events-none';
+
+              if (link.url) {
+                return (
+                  <a
+                    key={`ext-${idx}-${link.url}`}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={link.url}
+                    aria-label={link.url}
+                    style={style}
+                    className={`absolute block cursor-pointer rounded transition-colors hover:bg-emerald-500/20 focus:outline-none focus:ring-2 focus:ring-emerald-400 ${linkPointerClass}`}
+                  >
+                    <span className="sr-only">{link.url}</span>
+                  </a>
+                );
+              }
+
+              if (link.destPage !== undefined) {
+                const targetPage = link.destPage;
+                return (
+                  <button
+                    key={`int-${idx}-${targetPage}`}
+                    type="button"
+                    role="link"
+                    data-dest-page={targetPage}
+                    data-link-dest={targetPage}
+                    title={`Jump to Slide ${targetPage}`}
+                    aria-label={`Jump to Slide ${targetPage}`}
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      onNavigatePage?.(targetPage);
+                    }}
+                    style={style}
+                    className={`absolute block cursor-pointer rounded transition-colors hover:bg-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-400 ${linkPointerClass}`}
+                  >
+                    <span className="sr-only">
+                      Jump to Slide {targetPage} Back to Slide {targetPage}
+                    </span>
+                  </button>
+                );
+              }
+
+              return null;
+            })}
+          </div>
+        )}
 
         {/* Presenter stage curtain indicator */}
         {!isAudience && curtainMode !== 'none' && (

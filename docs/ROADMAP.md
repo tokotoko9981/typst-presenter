@@ -60,7 +60,7 @@ flowchart LR
   P1 --> P2 --> P3 --> P4
 ```
 
-### Phase 1（v0.2.1）: クイックウィン UX 改善 ＆ 足場固め
+### Phase 1（v0.2.1）: クイックウィン UX 改善 ＆ 足場固め【完了: `f14dd60` / Tauri実機修正 `b5c9617`】
 
 本番運用で目につく小さな不具合を最速で解消し、次フェーズ以降の保守性を高める段階です。
 
@@ -85,7 +85,7 @@ flowchart LR
 
 ---
 
-### Phase 2（v0.3.0）: 発表本番・表現力強化（Web / PWA / Desktop 共通）
+### Phase 2（v0.3.0）: 発表本番・表現力強化（Web / PWA / Desktop 共通）【完了: `2ee9502` ＋ ズーム1:1 DPR鮮明化修正】
 
 Web 版・PWA・Tauri デスクトップ版の全ユーザーに価値が届く本番支援・表現機能を実装します。
 
@@ -200,10 +200,10 @@ Phase 3 着手前に検討・確定する 4 つの設計論点について、仕
 
 ---
 
-## 5. Phase 1 着手チェックリスト
+## 5. Phase 3 着手チェックリスト
 
-次の実装セッションでは、以下の順で作業を開始します。
+別会話で開始する Phase 3 実装セッションでは、以下の順で作業を開始します（詳細は [`docs/HANDOFF.md`](./HANDOFF.md) セクション 4 も参照）。
 
-1. `BlackoutScreenIcon` の 2 案（`B` 修正 vs 形状差別化）と `UiGuideOverlay.tsx` の 3 パターン（A / B / C）を試作し、スクリーンショットをセッション `scratch/` へ保存して目視比較。
-2. 採用案の確定後、リモコン互換ショートカット追加・`AudienceView.tsx` フルスクリーン時 UI 非表示・`zustand` 削除を実装。
-3. 新規ユニット／E2E テストを追加し、`npm run typecheck` → `npm test` → `npm run build` → `npx playwright test --workers=1` の全通過と 1280×800 / 1024×680 視覚確認を完了。
+1. **付録 A〜D の設計確定**: 単一 `.typ` 原稿方式（案 1/2/3）と `hotReloadPdfBytes` 同期ポリシー、および付録 B（`pageLabels` ノート共有）・付録 C（ローカル `.md` 上書き）・付録 D（CLI 引数起動）の採否を確定する。
+2. **`extractors.ts` / `hotReloadPdfBytes` の拡張**: JSON 添付の `targetSeconds`・添付 `.md` frontmatter の保持と、再コンパイル時のノート追従を実装する。
+3. **Tauri v2 `src-tauri/src/commands/` 実装**: `tauri-plugin-dialog`・`notify`・`typst` CLI 実行（`CREATE_NO_WINDOW` ＆ `async fn`）と Live Compile Guard を実装し、Windows 実機（`typst 0.15.1`）で結合検証を行う。

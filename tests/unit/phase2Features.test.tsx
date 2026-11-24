@@ -16,6 +16,7 @@ import { generateQrSvg, getQrMatrix } from '../../src/core/qr/qrSvg.ts';
 import {
   DEFAULT_ZOOM_STATE,
   clampZoomState,
+  computeRelativeZoomTransform,
   isZoomed,
   panByNormalizedDelta,
   zoomAtPoint,
@@ -212,6 +213,46 @@ describe('Phase 2 Features — Unit Tests', () => {
       expect(zoomedPlan.cssHeight).toBe(basePlan.cssHeight);
       expect(zoomedPlan.canvasWidth).toBe(Math.floor(basePlan.cssWidth * 2.5));
     });
+
+    it('renders zoomView at native stage DPR without hitting MAX_CANVAS_EDGE and aligns center offset', () => {
+      const basePlan = computeRenderPlan(1280, 720, {
+        targetWidth: 1920,
+        targetHeight: 1080,
+        dpr: 1.5,
+        cropRegion: 'full',
+      });
+      const detailPlan = computeRenderPlan(1280, 720, {
+        targetWidth: 1920,
+        targetHeight: 1080,
+        dpr: 1.5,
+        cropRegion: 'full',
+        zoomView: { scale: 4, panX: 0, panY: 0 },
+      });
+
+      expect(detailPlan.scale).toBeCloseTo(basePlan.scale * 4, 6);
+      expect(detailPlan.cssWidth).toBe(1920);
+      expect(detailPlan.cssHeight).toBe(1080);
+      expect(detailPlan.canvasWidth).toBe(Math.floor(1920 * 1.5));
+      expect(detailPlan.canvasHeight).toBe(Math.floor(1080 * 1.5));
+      expect(detailPlan.offsetX).toBeCloseTo(-1920 * 1.5, 4);
+      expect(detailPlan.offsetY).toBeCloseTo(-1080 * 1.5, 4);
+
+      const exact = computeRelativeZoomTransform(
+        { scale: 3.5, panX: -0.25, panY: 0.15 },
+        { scale: 3.5, panX: -0.25, panY: 0.15 },
+      );
+      expect(exact.isExact).toBe(true);
+      expect(exact.relScale).toBeCloseTo(1, 6);
+
+      const shifted = computeRelativeZoomTransform(
+        { scale: 3.0, panX: -0.1, panY: 0.2 },
+        { scale: 2.0, panX: -0.2, panY: 0.1 },
+      );
+      expect(shifted.isExact).toBe(false);
+      expect(shifted.relScale).toBeCloseTo(1.5, 6);
+      expect(shifted.deltaPanX).toBeCloseTo(0.2, 6);
+      expect(shifted.deltaPanY).toBeCloseTo(0.05, 6);
+    });
   });
 
   describe('Offline SVG QR Generator & Frontmatter qrUrl', () => {
@@ -339,6 +380,15 @@ Hello world
         const res = await engine.renderPageToCanvas(3, visible, opts);
         expect(res?.pageNumber).toBe(3);
         expect(renderCounts[3]).toBe(1);
+
+        // Rendering page 3 with zoomView bypasses 1x prefetch cache and re-renders crisply
+        const zoomDetail = document.createElement('canvas');
+        const zoomRes = await engine.renderPageToCanvas(3, zoomDetail, {
+          ...opts,
+          zoomView: { scale: 3, panX: 0, panY: 0 },
+        });
+        expect(zoomRes?.pageNumber).toBe(3);
+        expect(renderCounts[3]).toBe(2);
 
         // Fill cache beyond MAX_PREFETCH_ENTRIES (4) to verify LRU bound
         engine.prefetchAdjacentPages(5, opts);

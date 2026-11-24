@@ -516,8 +516,11 @@ export class PdfEngine {
     const nextGen = (this.canvasRenderGeneration.get(canvas) ?? 0) + 1;
     this.canvasRenderGeneration.set(canvas, nextGen);
 
+    const hasZoomView = Boolean(
+      options.zoomView && Number.isFinite(options.zoomView.scale) && options.zoomView.scale > 1.001,
+    );
     const cacheKey = this.buildPrefetchKey(pageNumber, options);
-    const cached = this.prefetchCache.get(cacheKey);
+    const cached = !hasZoomView ? this.prefetchCache.get(cacheKey) : undefined;
     if (cached && cached.canvas !== canvas && cached.canvas.width > 0 && cached.canvas.height > 0) {
       const ctx = canvas.getContext('2d');
       if (ctx && typeof ctx.drawImage === 'function') {
@@ -902,7 +905,7 @@ export class PdfEngine {
     if (!doc || typeof document === 'undefined') {
       return;
     }
-    if ((options.zoomScale ?? 1) > 1.01) {
+    if ((options.zoomScale ?? 1) > 1.01 || (options.zoomView && options.zoomView.scale > 1.001)) {
       return;
     }
 

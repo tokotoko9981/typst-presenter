@@ -36,6 +36,11 @@ export interface RenderOptions {
   dpr: number;
   cropRegion: CropRegion;
   zoomScale?: number;
+  zoomView?: {
+    scale: number;
+    panX: number;
+    panY: number;
+  };
   signal?: AbortSignal;
 }
 

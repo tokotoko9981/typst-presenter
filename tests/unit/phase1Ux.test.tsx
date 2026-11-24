@@ -316,4 +316,40 @@ describe('Phase 1 UX — AudienceView fullscreen, idle cursor, and key forwardin
     expect(postSpy).toHaveBeenCalledWith({ type: 'REQUEST_ACTION', action: 'toggle-blackout' });
     expect(postSpy).toHaveBeenCalledWith({ type: 'REQUEST_ACTION', action: 'toggle-whiteout' });
   });
+
+  it('toggles Tauri native fullscreen via F and exits on Escape', async () => {
+    const invokeMock = vi.fn().mockImplementation(async (cmd: string) => {
+      if (cmd === 'is_audience_fullscreen') return false;
+      return undefined;
+    });
+    (
+      window as unknown as { __TAURI_INTERNALS__?: { invoke?: typeof invokeMock } }
+    ).__TAURI_INTERNALS__ = { invoke: invokeMock };
+
+    try {
+      render(
+        <I18nProvider>
+          <AudienceView />
+        </I18nProvider>,
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'f' });
+        await Promise.resolve();
+      });
+      expect(invokeMock).toHaveBeenCalledWith('set_audience_fullscreen', { fullscreen: true });
+
+      await act(async () => {
+        fireEvent.keyDown(window, { key: 'Escape' });
+        await Promise.resolve();
+      });
+      expect(invokeMock).toHaveBeenCalledWith('set_audience_fullscreen', { fullscreen: false });
+    } finally {
+      delete (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+    }
+  });
 });

@@ -5,6 +5,7 @@ import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
 import type { CropMode } from '../../core/pdf/types.ts';
 import { resolveSplitCropRegions } from '../../core/pdf/viewportMath.ts';
 import {
+  getAudienceWindowFullscreen,
   isTauriRuntime,
   setAudienceWindowFullscreen,
 } from '../../core/platform/DesktopBridge.ts';
@@ -49,6 +50,8 @@ export function AudienceView() {
     parseSessionIdFromHash(window.location.hash),
   );
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => checkIsFullscreen());
+  const isFullscreenRef = useRef<boolean>(isFullscreen);
+  isFullscreenRef.current = isFullscreen;
   const [cursorHidden, setCursorHidden] = useState<boolean>(false);
   const engineRef = useRef<PdfEngine | null>(null);
   const loadedDeckIdRef = useRef<string | null>(null);
@@ -142,7 +145,7 @@ export function AudienceView() {
     }
   };
 
-  const requestFullscreen = useCallback(() => {
+  const enterFullscreen = useCallback(() => {
     if (isTauriRuntime()) {
       void setAudienceWindowFullscreen(true).then((ok) => {
         if (ok) setIsFullscreen(true);
@@ -152,8 +155,36 @@ export function AudienceView() {
     document.documentElement.requestFullscreen?.().catch(() => {});
   }, []);
 
+  const exitFullscreen = useCallback(() => {
+    if (isTauriRuntime()) {
+      void setAudienceWindowFullscreen(false).then((ok) => {
+        if (ok) setIsFullscreen(false);
+      });
+      return;
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (isFullscreenRef.current) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  }, [enterFullscreen, exitFullscreen]);
+
   useEffect(() => {
+    let active = true;
     const syncFullscreen = () => {
+      if (isTauriRuntime()) {
+        void getAudienceWindowFullscreen().then((fs) => {
+          if (!active) return;
+          setIsFullscreen(fs !== null ? fs : checkIsFullscreen());
+        });
+        return;
+      }
       setIsFullscreen(checkIsFullscreen());
     };
     syncFullscreen();
@@ -161,6 +192,7 @@ export function AudienceView() {
     document.addEventListener('webkitfullscreenchange', syncFullscreen);
     window.addEventListener('resize', syncFullscreen);
     return () => {
+      active = false;
       document.removeEventListener('fullscreenchange', syncFullscreen);
       document.removeEventListener('webkitfullscreenchange', syncFullscreen);
       window.removeEventListener('resize', syncFullscreen);
@@ -330,9 +362,12 @@ export function AudienceView() {
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === 'f' || e.key === 'F') {
+      if (e.key === 'Escape' && isTauriRuntime() && isFullscreenRef.current) {
         e.preventDefault();
-        requestFullscreen();
+        exitFullscreen();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
       } else if (
         e.key === 'ArrowRight' ||
         e.key === 'PageDown' ||
@@ -366,7 +401,7 @@ export function AudienceView() {
       unsub();
       bridge.destroy();
     };
-  }, [sessionId, requestFullscreen]);
+  }, [sessionId, toggleFullscreen, exitFullscreen]);
 
   const { slideRegion } = resolveSplitCropRegions(cropMode, swapSplitHalves);
 
@@ -375,7 +410,7 @@ export function AudienceView() {
       data-testid="audience-shell"
       data-cursor-hidden={cursorHidden ? 'true' : 'false'}
       style={{ backgroundColor: '#000000' }}
-      onDoubleClick={requestFullscreen}
+      onDoubleClick={toggleFullscreen}
       className={`relative flex h-screen w-screen items-center justify-center overflow-hidden bg-black text-slate-200 ${
         cursorHidden ? 'cursor-none' : ''
       }`}
@@ -410,7 +445,7 @@ export function AudienceView() {
       {curtainMode === 'none' && !isFullscreen && (
         <button
           type="button"
-          onClick={requestFullscreen}
+          onClick={enterFullscreen}
           data-testid="fullscreen-prompt"
           className="fixed bottom-2 right-2 z-20 rounded bg-slate-900/60 px-2.5 py-1 text-[11px] text-slate-400 transition-opacity hover:bg-slate-800 hover:text-slate-200"
         >

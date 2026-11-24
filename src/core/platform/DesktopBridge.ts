@@ -334,6 +334,19 @@ export async function setAudienceWindowFullscreen(fullscreen: boolean): Promise<
   return false;
 }
 
+export async function getAudienceWindowFullscreen(): Promise<boolean | null> {
+  const invoke = getTauriInvoke();
+  if (!invoke) {
+    return null;
+  }
+  try {
+    const result = await invoke<boolean>('is_audience_fullscreen');
+    return Boolean(result);
+  } catch {
+    return null;
+  }
+}
+
 export async function getPlatformInfo(): Promise<PlatformInfo | null> {
   const invoke = getTauriInvoke();
   if (!invoke) {

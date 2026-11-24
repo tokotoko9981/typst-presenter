@@ -1238,7 +1238,7 @@ export function PresenterConsole() {
       sessionId,
       audienceUrl: url,
       monitorIndex: selectedMonitorIndex,
-      fullscreen: isTauriRuntime(),
+      fullscreen: isTauriRuntime() && monitors.length > 1,
     });
     if (!result.opened && result.popupBlockedUrl) {
       setPopupBlockedUrl(result.popupBlockedUrl);

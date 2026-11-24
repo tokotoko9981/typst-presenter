@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   closeAudienceDisplay,
+  getAudienceWindowFullscreen,
   getPlatformInfo,
   isTauriRuntime,
   launchAudienceDisplay,
@@ -407,5 +408,16 @@ describe('DesktopBridge', () => {
       version: '0.2.0',
     });
     expect(invokeMock).toHaveBeenCalledWith('get_platform_info');
+
+    invokeMock.mockResolvedValueOnce(true);
+    expect(await getAudienceWindowFullscreen()).toBe(true);
+    expect(invokeMock).toHaveBeenCalledWith('is_audience_fullscreen');
+
+    invokeMock.mockRejectedValueOnce(new Error('IPC error'));
+    expect(await getAudienceWindowFullscreen()).toBeNull();
+  });
+
+  it('returns null for getAudienceWindowFullscreen outside Tauri', async () => {
+    expect(await getAudienceWindowFullscreen()).toBeNull();
   });
 });

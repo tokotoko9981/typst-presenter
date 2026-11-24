@@ -75,12 +75,21 @@ fn apply_monitor_and_fullscreen(
     if let Some(mon) = monitor {
         let pos = mon.position();
         let size = mon.size();
-        window
-            .set_position(Position::Physical(PhysicalPosition::new(pos.x, pos.y)))
-            .map_err(|e| e.to_string())?;
-        window
-            .set_size(Size::Physical(PhysicalSize::new(size.width, size.height)))
-            .map_err(|e| e.to_string())?;
+        if fullscreen {
+            window
+                .set_position(Position::Physical(PhysicalPosition::new(pos.x, pos.y)))
+                .map_err(|e| e.to_string())?;
+            window
+                .set_size(Size::Physical(PhysicalSize::new(size.width, size.height)))
+                .map_err(|e| e.to_string())?;
+        } else {
+            window
+                .set_position(Position::Physical(PhysicalPosition::new(
+                    pos.x + 80,
+                    pos.y + 60,
+                )))
+                .map_err(|e| e.to_string())?;
+        }
     }
 
     window.set_fullscreen(fullscreen).map_err(|e| e.to_string())?;
@@ -128,7 +137,7 @@ fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
 }
 
 #[tauri::command]
-fn open_audience_window(
+async fn open_audience_window(
     app: AppHandle,
     session_id: String,
     monitor_index: Option<usize>,
@@ -143,6 +152,7 @@ fn open_audience_window(
     let url = WebviewUrl::App(format!("index.html#/audience?session={}", session_id).into());
     let window = WebviewWindowBuilder::new(&app, "audience", url)
         .title("Typst Presenter - Audience")
+        .background_color(tauri::window::Color(0, 0, 0, 255))
         .inner_size(1280.0, 720.0)
         .resizable(true)
         .build()
@@ -152,7 +162,7 @@ fn open_audience_window(
 }
 
 #[tauri::command]
-fn close_audience_window(app: AppHandle) -> Result<(), String> {
+async fn close_audience_window(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("audience") {
         window.close().map_err(|e| e.to_string())?;
     }
@@ -160,12 +170,20 @@ fn close_audience_window(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn set_audience_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), String> {
+async fn set_audience_fullscreen(app: AppHandle, fullscreen: bool) -> Result<(), String> {
     let window = app
         .get_webview_window("audience")
         .ok_or_else(|| "Audience window is not open".to_string())?;
     window.set_fullscreen(fullscreen).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+async fn is_audience_fullscreen(app: AppHandle) -> Result<bool, String> {
+    Ok(app
+        .get_webview_window("audience")
+        .and_then(|w| w.is_fullscreen().ok())
+        .unwrap_or(false))
 }
 
 #[tauri::command]
@@ -181,11 +199,24 @@ fn get_platform_info() -> PlatformInfo {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .on_window_event(|window, event| {
+            if window.label() == "main"
+                && matches!(
+                    event,
+                    tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed
+                )
+            {
+                if let Some(audience) = window.app_handle().get_webview_window("audience") {
+                    let _ = audience.destroy();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             list_monitors,
             open_audience_window,
             close_audience_window,
             set_audience_fullscreen,
+            is_audience_fullscreen,
             get_platform_info,
         ])
         .run(tauri::generate_context!())

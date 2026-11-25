@@ -111,7 +111,7 @@ Web 版・PWA・Tauri デスクトップ版の全ユーザーに価値が届く�
 
 ---
 
-### Phase 3（v0.4.0）: Typst 単一ファイル原稿 ＆ Tauri v2 直接ライブコンパイル【完了】
+### Phase 3（v0.4.0）: Typst 単一ファイル原稿 ＆ Tauri v2 直接ライブコンパイル【完了: `8ca2ba5` / 手動テスト `bc63488` / 調整 `633ad92`】
 
 「Typst Presenter」の最大の差別化ポイントである **`.typ` ソースを直接開いて安全にライブ発表できるワークフロー** を構築しました。
 
@@ -122,10 +122,11 @@ Web 版・PWA・Tauri デスクトップ版の全ユーザーに価値が届く�
 2. **【完了】単一 `.typ` ファイル原稿対応（付録 A：案 1 二段構え ＋ 由来管理ホットリロード）**
    - [`typst/presenter-notes.typ`](../typst/presenter-notes.typ)（`#speaker-note` / `#presenter-config` / `#enable-presenter-notes`）で `#pdf.attach` JSON を自動埋め込みし、Tauri 直接コンパイル時は `typst query <pdfpc>` を補完抽出（[`typstPdfpcParser.ts`](../src/core/typst/typstPdfpcParser.ts)）。
    - `extractors.ts` の JSON `targetSeconds` / 添付 `.md` YAML frontmatter 保持、および `mergeHotReloadNotesBundle` による `embedded` 自動追従・`manual`/`sidecar` 保護を実装。
-3. **【完了】周辺機能 3 点（付録 B〜D）**
-   - **付録 B**: [`logicalSlides.ts`](../src/core/notes/logicalSlides.ts) による `pageLabels` サブスライド間ノート共有と [`RehearsalStatsModal.tsx`](../src/features/presenter/RehearsalStatsModal.tsx) の論理合算表示。
+3. **【完了】周辺機能 3 点（付録 B〜D）＋ タイマー仕様調整（`633ad92`）**
+   - **付録 B**: [`logicalSlides.ts`](../src/core/notes/logicalSlides.ts) による `pageLabels` サブスライド間ノート共有、[`RehearsalStatsModal.tsx`](../src/features/presenter/RehearsalStatsModal.tsx) の論理合算表示、および方式 C（同一論理スライド内のサブスライド移動でスライドタイマー継続）を実装。
    - **付録 C**: [`NotesFileSaver.ts`](../src/core/files/NotesFileSaver.ts) によるローカル `.md` 直接上書き保存（Marp/Slidev ソース保護ガード付き）。
    - **付録 D**: `get_launch_file` による Tauri CLI 引数起動（`typst-presenter slides.typ` / `deck.pdf`）。
+   - **タイマー調整**: UI およびアクティブ計算から終了時刻（`End Time`）を削除し、「発表時間 (分)」と「警告残り (分)」の 2 列へ整理。
 
 ---
 
@@ -197,10 +198,10 @@ Phase 3 着手前に検討・確定する 4 つの設計論点について、仕
 
 ---
 
-## 5. Phase 3 着手チェックリスト
+## 5. Phase 4 着手チェックリスト
 
-別会話で開始する Phase 3 実装セッションでは、以下の順で作業を開始します（詳細は [`docs/HANDOFF.md`](./HANDOFF.md) セクション 4 も参照）。
+別会話で開始する Phase 4 実装セッションでは、[`docs/HANDOFF.md`](./HANDOFF.md) セクション 4 および本ロードマップのセクション 3（Phase 4）に基づき、以下の順で作業を開始します。
 
-1. **付録 A〜D の設計確定**: 単一 `.typ` 原稿方式（案 1/2/3）と `hotReloadPdfBytes` 同期ポリシー、および付録 B（`pageLabels` ノート共有）・付録 C（ローカル `.md` 上書き）・付録 D（CLI 引数起動）の採否を確定する。
-2. **`extractors.ts` / `hotReloadPdfBytes` の拡張**: JSON 添付の `targetSeconds`・添付 `.md` frontmatter の保持と、再コンパイル時のノート追従を実装する。
-3. **Tauri v2 `src-tauri/src/commands/` 実装**: `tauri-plugin-dialog`・`notify`・`typst` CLI 実行（`CREATE_NO_WINDOW` ＆ `async fn`）と Live Compile Guard を実装し、Windows 実機（`typst 0.15.1`）で結合検証を行う。
+1. **Phase 4 スコープ・優先順位の合意**: `examples/lt-typst-presenter.typ` 改修、文字数からの目標時間見積もり、ペイン分割比率調整、LAN スマホリモコン、コード署名／自動アップデートの着手順を確定する。
+2. **公式サンプル刷新 ＆ 視覚確認**: `examples/lt-typst-presenter.typ` を Phase 1〜3 仕様に合わせて更新し、`public/sample-deck.pdf` / `public/sample-notes.md` へ同期したうえで全ページ PNG 視覚確認と既存テスト通過を確認する。
+3. **選択した Phase 4 機能の設計・実装・検証**: 1 機能ずつユニット／E2E テストと視覚検証を伴って実装する。

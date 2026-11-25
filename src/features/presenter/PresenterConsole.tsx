@@ -4187,7 +4187,7 @@ export function PresenterConsole() {
                 <div
                   data-testid="notes-content"
                   style={{ fontSize: `${noteFontSizePx}px` }}
-                  className="prose prose-sm max-w-none flex-1 overflow-y-auto leading-relaxed text-slate-800 dark:prose-invert dark:text-slate-200"
+                  className="prose prose-sm max-w-none flex-1 overflow-y-auto leading-relaxed text-slate-800 [overflow-wrap:anywhere] dark:prose-invert dark:text-slate-200"
                 >
                   {currentSlideMarkdown.trim().length > 0 ? (
                     <ReactMarkdown>{currentSlideMarkdown}</ReactMarkdown>

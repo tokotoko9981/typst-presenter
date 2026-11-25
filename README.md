@@ -15,32 +15,34 @@ Typst で作成した発表用 PDF スライド（Touying / Polylux / Presio な
    - ブラウザ実行時は Web Window Management API（`getScreenDetails`）に対応し、未対応ブラウザでも標準ポップアップ（`window.open`）へ自動フォールバックします。ポップアップがブロックされた場合は URL コピー付きバナーおよび 1 画面モードで発表を継続できます。
    - 聴衆画面・発表者画面を `F5` リロードしても直近のスライド位置・クロップ設定・カーテン状態を自動復元し、オンボーディング画面の **Recent Decks** から直近開いた最大 5 デッキのワンクリック復元・削除が可能です。
 
-2. **発表者用スクリプト（Speaker Notes）表示・編集・自動抽出**
+2. **発表者用スクリプト（Speaker Notes）表示・編集・自動抽出・目標時間見積もり**
    - 発表者側にのみ Markdown 形式のカンペ（スクリプト）を整形表示（`react-markdown`）。
-   - インライン編集（`E` キー）、文字サイズ調整（`A-` / `A+`）、スライドごとの目標時間（`目標 <秒>`）設定に対応し、`IndexedDB` に自動保存。
-   - 外部ノートファイル（`.md` / `.markdown` / `.json` / `.pdfpc` v2）のインポート・エクスポートに対応。`Export .md` では `duration`・`lastMinutes`・`noteFontSize`・`endTime` の YAML frontmatter ラウンドトリップ出力にも対応しています。
-   - **PDF 埋め込みノート抽出**: Typst の `#pdf.attach`（Presio 形式等）や PDF 注釈（`Text` および `FreeText`、リッチテキスト含む）からの自動取り込みに対応。
-   - **Marp / Slidev ソース `.md` 直接読み込み**: Marp / Slidev 形式のフロントマターやディレクティブコメント（`paginate:`, `theme:`, `layout:`, `<!--fit-->` 等）を除外し、スピーカーノート用 HTML コメントや `<!-- note: ... -->`・`<!-- target: 秒 -->` を自動抽出します（通常の `---` 区切りノートとも競合しません）。
+   - インライン編集（`E` キー）、文字サイズ調整（`A-` / `A+`）、スライドごとの目標時間（`目標 <秒>`）設定、および原稿文字数からの自動目標時間見積もり（日本語/英語速度プリセット対応）に対応し、`IndexedDB` に自動保存。
+   - 外部ノートファイル（`.md` / `.markdown` / `.json` / `.pdfpc` v2）のインポート・エクスポート、およびローカル `.md` への直接上書き保存（Marp/Slidev 原稿保護付き）に対応。`Export .md` では `duration`・`lastMinutes`・`noteFontSize`・`qrUrl`・`qrLabel` の YAML frontmatter ラウンドトリップ出力にも対応しています。
+   - **PDF 埋め込みノート抽出 ＆ 単一 `.typ` 対応**: [`typst/presenter-notes.typ`](./typst/presenter-notes.typ)（`#speaker-note` / `#presenter-config`）による `#pdf.attach` JSON 埋め込みや、PDF 注釈（`Text` / `FreeText`）、Tauri での `typst query <pdfpc>` 補完抽出に対応。
+   - **Marp / Slidev ソース `.md` 直接読み込み**: Marp / Slidev 形式のフロントマターやディレクティブコメント（`paginate:`, `theme:`, `layout:`, `<!--fit-->` 等）を除外し、スピーカーノート用 HTML コメントや `<!-- note: ... -->`・`<!-- target: 秒 -->` を自動抽出します。
 
-3. **プレゼンテーションタイマー ＆ リハーサル時間分析（`R` キー）**
-   - 現在時刻（Wall Clock）、経過時間（Elapsed: `Start` / `Pause` / `Reset`）、残り時間カウントダウン（`Duration` 分指定または終了時刻 `HH:MM` 指定）を統合。
-   - 残り時間警告（`Warning`）や時間超過時の赤色カウントアップ（`+MM:SS`）、スライドごとの目標時間に対するリアルタイムペース表示（`ahead` / `on-track` / `warning` / `overtime`）を備えています。
-   - **リハーサル時間分析モーダル（`Stats (R)` / `R` キー）**: タイマー稼働中の各スライド滞在時間・訪問回数・目標との差分を可視化し、行クリックで該当スライドへジャンプできます。**Apply Actual as Targets** による実測値の目標時間一括反映や、`.md` / `.csv` 形式でのレポートダウンロードに対応しています。
+3. **プレゼンテーションタイマー ＆ 学会チャイム SE ＆ リハーサル分析（`R` キー）**
+   - 現在時刻（Wall Clock）、経過時間（Elapsed: `Start` / `Pause` / `Reset`）、残り時間カウントダウン（`Duration` 分・`Warning` 分指定）を統合。
+   - 残り時間警告（`Warning`）や時間超過時の赤色カウントアップ（`+MM:SS`）、スライドごとの目標時間に対するリアルタイムペース表示（`ahead` / `on-track` / `warning` / `overtime`）、および学会形式チャイム SE（1/2/3 鈴、Web Audio API、デフォルト OFF）を備えています。
+   - **リハーサル時間分析モーダル（`Stats (R)` / `R` キー）**: タイマー稼働中の各スライド滞在時間・訪問回数・目標との差分を可視化し、論理スライド合算切替や **Apply Actual as Targets** による実測値の目標時間一括反映、`.md` / `.csv` 形式のレポート出力に対応しています。
 
-4. **ポインター・スポットライト・拡張アノテーション・ステージ保護制御**
-   - **レーザーポインター（`L`）**: 解像度やアスペクト比が異なる画面間でも `[0..1]` 正規化座標でリアルタイム同期し、視認性の高い残像トレイル（Laser trail）を描画します。
-   - **スポットライト（`S`）**: 注目箇所以外を暗転して強調表示します。スライド上のクリックでスポット位置を固定／解除（click-to-pin）でき、マウスホイール・ツールバーの `Spot -` / `Spot +` ボタン・`[` / `]` キーでスポット半径を自在に調整できます。
-   - **フリーハンドペン（`D`）**: 5 色カラー切替（Red `#ef4444` / Blue `#3b82f6` / Yellow `#facc15` / Green `#22c55e` / White `#ffffff`）、太さ調整（`+/-`）、`Undo`、全消去（`C`）、さらに描画を残したまま表示／非表示を切り替える **Ink (`H`)** に対応。
-   - **ステージ保護制御**: Blackout（`B`：黒画面）、Whiteout（`W`：白画面）、Freeze（`F`：聴衆画面固定）、および発表中の誤リロード・誤タブ閉じを防ぐ **Guard**（`beforeunload` 保護トグル）。
+4. **ポインター・スポットライト・ズーム・QR 投影・ステージ保護制御**
+   - **レーザーポインター（`L`）**: 赤 / 緑 / 青の 3 色切替に対応し、解像度やアスペクト比が異なる画面間でも `[0..1]` 正規化座標でリアルタイム同期します。
+   - **スポットライト（`S`）**: 注目箇所以外を暗転して強調表示（クリック固定、`[` / `]`・ホイールで半径調整）。
+   - **スライド拡大・パン（`Z`）**: カーソル中心に最大 4 倍まで拡大・ドラッグパンでき、拡大領域を高解像度再描画して数式や図表を鮮明に表示します（`0` / `Esc` / ページ送りで解除）。
+   - **フリーハンドペン（`D`）**: 5 色カラー切替、太さ調整（`+/-`）、`Undo`、全消去（`C`）、表示／非表示切替（`H`）。
+   - **Q&A 用 QR コード投影（`Q`）**: オフライン生成の SVG QR コードを聴衆画面へ即時投影。
+   - **ステージ保護制御**: Blackout（`B` / `.`）、Whiteout（`W`）、Freeze（`F`）、聴衆画面 2px プログレスバー（デフォルト OFF）、および誤リロード・誤終了を防ぐ **Guard**（ブラウザ `beforeunload` / Tauri `CloseRequested` 連動）。
 
-5. **File System Access API による `Watch PDF` ホットリロード**
-   - 対応ブラウザではツールバーの **Watch PDF** からローカル PDF ファイルを監視（デフォルト 1500ms ポーリング）できます。
-   - `typst watch` や `marp -w` による再コンパイルを自動検知し、書き込み途中の 0 バイト状態をスキップしたうえで、現在のページ位置（新しいページ数でクランプ）・既存ノート・タイマー・ペン描線を保持したままシームレスに再読込して聴衆画面へ反映します。
+5. **ライブコンパイル ＆ ホットリロード**
+   - **Tauri デスクトップ版（`.typ を開く`）**: `typst` CLI で `.typ` ファイルを直接監視・一時ビルド（Live Compile Guard：構文エラー時は直前の正常 PDF・ページ・描線を維持したまま診断ドロワーへエラーを表示）。
+   - **Web 版（`Watch PDF`）**: Chromium 系ブラウザの File System Access API でローカル PDF 更新を自動検知し、ページ位置やノートを保ったまま再読込します。
 
-6. **ナビゲーション・分割スライド対応・オフライン PWA**
-   - スライド一覧サムネイルグリッド（`G` / `Tab`）、PDF 見出しアウトラインドロワー（`O`）、スライド内の PDF 内部リンク・外部 URL リンクのクリック遷移、数字キー + `Enter` 直接ジャンプに対応。
-   - Touying の `show-notes-on-second-screen` などで生成された横長（アスペクト比 `> 2.4`）や縦分割の PDF を自動検出し、`Full` / `Split L|R` / `Split T|B` および `Swap Halves` に対応。
-   - **PWA ＆ 静的配布**: `vite-plugin-pwa` と同梱 `pdfjs/` アセット（CJK CMap / 標準フォント / WASM / ICC）により完全オフラインで動作し、GitHub Pages（[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)）へ自動デプロイされます。
+6. **ナビゲーション・分割スライド・ペイン比率調整・オフライン PWA**
+   - スライド一覧サムネイルグリッド（`G` / `Tab`）、PDF 見出しアウトライン（`O`）、PDF 内部リンク／外部 URL クリック、数字キー + `Enter` 直接ジャンプ、発表者画面の左右ペイン分割比率ドラッグ調整に対応。
+   - Touying / Polylux の横長分割 PDF 自動検出（`Full` / `Split L|R` / `Split T|B` / `Swap Halves`）や、同一 `pageLabels` のサブスライド間ノート共有・タイマー継続に対応。
+   - **PWA ＆ 静的配布**: `vite-plugin-pwa` と同梱 `pdfjs/` アセットにより完全オフラインで動作し、GitHub Pages（[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml)）へ自動デプロイされます。
 
 ---
 
@@ -105,19 +107,6 @@ npm run tauri:build
 ## サンプル資料（`examples/`）
 
 - [`examples/lt-typst-presenter.typ`](./examples/lt-typst-presenter.typ) / [`examples/lt-typst-presenter.pdf`](./examples/lt-typst-presenter.pdf) / [`examples/lt-typst-presenter-notes.md`](./examples/lt-typst-presenter-notes.md): Typst Presenter 紹介用の 9 枚構成・5 分間 LT スライド ＆ 発表者ノート（アプリ内 **サンプル読込 / Load Sample Deck** で [`public/sample-deck.pdf`](./public/sample-deck.pdf) ＆ [`public/sample-notes.md`](./public/sample-notes.md) として読込可能）。
-- [`examples/sample-deck.typ`](./examples/sample-deck.typ): 初期テスト向けの汎用サンプルソース。
-
----
-
-## 開発引き継ぎ・次期拡張計画
-
-現在のモジュール構成・テスト実行上の制約（PowerShell / Vitest / Playwright）・E2E セレクタ契約は [**docs/HANDOFF.md**](./docs/HANDOFF.md)、合意済みのフェーズ別実装ロードマップは [**docs/ROADMAP.md**](./docs/ROADMAP.md) にまとめています。
-
----
-
-## Roadmap
-
-詳細は [**docs/ROADMAP.md**](./docs/ROADMAP.md) を参照してください。
 
 - **Phase 1 (v0.2.1)**: 黒画面アイコン改善、プレゼンターリモコン互換ショートカット、聴衆画面フルスクリーン時 UI 非表示、`UiGuideOverlay` 再設計、基盤整理
 - **Phase 2 (v0.3.0)**: 発表チャイム SE（Web Audio API）、スライド部分拡大・パン（Zoom `Z`）、レーザー色切替、隣接ページ先読み、Q&A 用 QR コードオーバーレイ、極薄プログレスバー

@@ -1,6 +1,6 @@
 [package]
 name = "typst-presenter"
-version = "0.2.0"
+version = "0.4.1"
 description = "Dual-window presentation console with speaker notes and pacing timers for Typst and arbitrary PDFs"
 authors = ["tokotoko9981"]
 license = "MIT"

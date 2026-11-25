@@ -84,7 +84,7 @@ npm run tauri:build
 
 | ファイル | 役割 |
 | --- | --- |
-| [`src-tauri/Cargo.toml`](../src-tauri/Cargo.toml) | クレート名 `typst-presenter`（`v0.2.0`, MIT）、ライブラリ `typst_presenter_lib`（`staticlib`, `cdylib`, `rlib`）、`tauri` v2・`serde`・`serde_json`・`tauri-build` v2 の依存定義 |
+| [`src-tauri/Cargo.toml`](../src-tauri/Cargo.toml) | クレート名 `typst-presenter`（`v0.4.1`, MIT）、ライブラリ `typst_presenter_lib`（`staticlib`, `cdylib`, `rlib`）、`tauri` v2・`serde`・`serde_json`・`tauri-build` v2 の依存定義 |
 | [`src-tauri/build.rs`](../src-tauri/build.rs) | `tauri_build::build()` によるビルド時スキーマ・リソース生成 |
 | [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json) | Tauri v2 設定。`productName: "Typst Presenter"`, `identifier: "io.github.tokotoko9981.typst-presenter"`, メインウィンドウ `main`（`1440x900`・最小 `1024x680`）、`frontendDist: "../dist"`、アイコン 5 ファイル構成 |
 | [`src-tauri/capabilities/default.json`](../src-tauri/capabilities/default.json) | `main` および `audience` ウィンドウに対する最小権限セット（`core:default`, `core:window:default`, `allow-set-fullscreen`, `allow-set-position`, `allow-set-size`, `allow-set-focus`, `allow-close`, `core:webview:allow-create-webview-window`） |

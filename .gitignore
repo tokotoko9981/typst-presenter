@@ -9,3 +9,4 @@ playwright/.cache/
 *.tsbuildinfo
 src-tauri/target/
 src-tauri/gen/
+.dev/

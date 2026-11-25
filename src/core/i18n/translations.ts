@@ -236,6 +236,7 @@ export interface TranslationDict {
   shortcutGrid: string;
   shortcutOutline: string;
   shortcutEditNotes: string;
+  shortcutQr: string;
   shortcutUiGuide: string;
   helpFormatMarkdownTitle: string;
   helpFormatMarkdownBody: string;
@@ -364,7 +365,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     laserColorBlue: 'Blue',
     zoomBtn: 'Zoom & Pan (Z)',
     zoomResetBtn: 'Reset (0)',
-    qrBtn: 'Q&A QR Code Overlay',
+    qrBtn: 'Q&A QR Code Overlay (Q)',
     qrModalTitle: 'Q&A QR Code Overlay',
     qrModalDesc: 'Generate an offline QR code for handouts or links and project it onto the Audience display.',
     qrUrlLabel: 'Target URL / Text',
@@ -419,7 +420,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideBlockInkActions: 'Undo · Clear (C) · Show/Hide Ink (H)',
     uiGuideBlockViewsGuard: 'Focus Guard · Stats (R) · Grid (G) · Outline (O)',
     uiGuideBlockNotesFont: 'Note Font Size (A- / A+)',
-    uiGuideBlockNotesTarget: 'Slide Target Duration (sec)',
+    uiGuideBlockNotesTarget: 'Slide Target & Auto-Estimate',
     uiGuideBlockNotesIo: 'Edit (E) · Import · Embedded · Export Notes',
     quickGuideBtn: 'Quick Guide (?)',
     localeToggleTitle: 'Switch language (JP / EN)',
@@ -549,6 +550,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutGrid: 'Open Slide Grid',
     shortcutOutline: 'Open PDF Outline',
     shortcutEditNotes: 'Edit Current Slide Notes',
+    shortcutQr: 'Toggle Q&A QR Code Overlay',
     shortcutUiGuide: 'Show All UI Tooltips Overlay',
 
     helpFormatMarkdownTitle: 'Markdown (--- or <!-- slide: N -->)',
@@ -684,7 +686,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     laserColorBlue: '青',
     zoomBtn: '部分拡大・パン (Z)',
     zoomResetBtn: 'リセット (0)',
-    qrBtn: 'Q&A 用 QR コード投影',
+    qrBtn: 'Q&A 用 QR コード投影 (Q)',
     qrModalTitle: 'Q&A 用 QR コード投影',
     qrModalDesc: '外部通信なしで URL の QR コードを生成し、聴衆画面へ即時投影します。',
     qrUrlLabel: 'リンク URL / テキスト',
@@ -739,7 +741,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     uiGuideBlockInkActions: '戻す・全消去 (C)・描線表示切替 (H)',
     uiGuideBlockViewsGuard: 'フォーカスガード・時間分析 (R)・一覧 (G)・目次 (O)',
     uiGuideBlockNotesFont: 'ノート文字サイズ (A- / A+)',
-    uiGuideBlockNotesTarget: 'スライド目標秒数',
+    uiGuideBlockNotesTarget: 'スライド目標秒数・自動見積もり',
     uiGuideBlockNotesIo: 'ノート編集 (E)・取込・埋め込み読込・書出',
     quickGuideBtn: '使い方ガイド (?)',
     localeToggleTitle: '表示言語を切替 (JP / EN)',
@@ -869,6 +871,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     shortcutGrid: 'スライド一覧グリッドを開く',
     shortcutOutline: 'PDF 見出しアウトラインを開く',
     shortcutEditNotes: '発表者ノートを編集',
+    shortcutQr: 'Q&A 用 QR コード投影モーダルを開閉',
     shortcutUiGuide: '全ボタンの説明を一括オーバーレイ表示',
 
     helpFormatMarkdownTitle: 'Markdown ノート (--- / <!-- slide: N -->)',

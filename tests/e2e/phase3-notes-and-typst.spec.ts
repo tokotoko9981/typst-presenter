@@ -136,7 +136,7 @@ test.describe('Phase 3 — Single .typ Notes, Logical Slides, Direct Overwrite &
     const errors = attachErrorCollector(page);
     const subslidePdf = path.resolve(
       process.cwd(),
-      'examples/phase3-manual-test/03-subslides-pagelabels.pdf',
+      'tests/fixtures/subslides-pagelabels.pdf',
     );
     await page.goto('/#/');
     await page.locator('input[type="file"][accept*="pdf" i]').first().setInputFiles(subslidePdf);

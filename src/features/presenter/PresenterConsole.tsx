@@ -4138,7 +4138,7 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => void commitSlideTargetInput(slideTargetInputText)}
-                      className="h-6 w-9 rounded border border-slate-300 bg-slate-50 px-1 text-center font-mono text-xs text-slate-900 xl:w-10 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                      className="h-6 w-9 rounded border border-slate-300 bg-slate-50 px-1 text-center font-mono text-xs text-slate-900 [appearance:textfield] xl:w-10 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                     <span>{t.secondsUnit}</span>
                   </label>

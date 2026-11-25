@@ -290,6 +290,12 @@ export function usePresenterShortcuts({
           if (numPages !== null) onOpenNotesEditor();
           break;
         }
+        case 'q':
+        case 'Q': {
+          e.preventDefault();
+          onSetActiveModal((prev) => (prev === 'qr' ? 'none' : 'qr'));
+          break;
+        }
         case '?': {
           e.preventDefault();
           onSetHelpInitialTab('shortcuts');

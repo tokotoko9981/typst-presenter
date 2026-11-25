@@ -5,6 +5,7 @@ import {
   Bell,
   BellOff,
   BookOpen,
+  Calculator,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -74,6 +75,13 @@ import {
   resolveNoteForPage,
 } from '../../core/notes/logicalSlides.ts';
 import {
+  DEFAULT_READING_SPEED_PRESET,
+  estimateDeckTargetSeconds,
+  estimateReadingSeconds,
+  normalizeReadingSpeedPreset,
+  type ReadingSpeedPreset,
+} from '../../core/notes/readingTime.ts';
+import {
   clampPaneSplitRatio,
   computeSplitRatioFromPointer,
   DEFAULT_PANE_SPLIT_RATIO,
@@ -141,6 +149,7 @@ import { RehearsalStatsModal } from './RehearsalStatsModal.tsx';
 import { UiGuideOverlay } from './UiGuideOverlay.tsx';
 import { BlackoutScreenIcon, WhiteoutScreenIcon } from './components/CurtainIcons.tsx';
 import { QrOverlayModal } from './components/QrOverlayModal.tsx';
+import { ReadingTimePopover } from './components/ReadingTimePopover.tsx';
 import { TypstCompileDrawer } from './components/TypstCompileDrawer.tsx';
 import { useChimeAlerts } from './hooks/useChimeAlerts.ts';
 import {
@@ -226,6 +235,7 @@ export function PresenterConsole() {
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const laserMenuBtnRef = useRef<HTMLButtonElement | null>(null);
   const laserPopoverRef = useRef<HTMLDivElement | null>(null);
+  const readingTimeBtnRef = useRef<HTMLButtonElement | null>(null);
   const lastStageHoverRef = useRef<NormalizedPoint | null>(null);
   const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const paneSplitRatioRef = useRef<number>(DEFAULT_PANE_SPLIT_RATIO);
@@ -340,6 +350,12 @@ export function PresenterConsole() {
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
   const [paneSplitRatio, setPaneSplitRatio] = useState<number>(DEFAULT_PANE_SPLIT_RATIO);
   const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
+  const [readingTimeAnchor, setReadingTimeAnchor] = useState<{ top: number; left: number } | null>(
+    null,
+  );
+  const [readingSpeedPreset, setReadingSpeedPreset] = useState<ReadingSpeedPreset>(
+    DEFAULT_READING_SPEED_PRESET,
+  );
   paneSplitRatioRef.current = paneSplitRatio;
 
   useEffect(() => {
@@ -643,6 +659,7 @@ export function PresenterConsole() {
       );
       setPaneSplitRatio(restoredSplitRatio);
       paneSplitRatioRef.current = restoredSplitRatio;
+      setReadingSpeedPreset(normalizeReadingSpeedPreset(prefs.readingSpeedPreset));
 
       const decks = await storageService.listDecks();
       if (!mounted) return;
@@ -2159,6 +2176,97 @@ export function PresenterConsole() {
     [meta, notesBundle, locale],
   );
 
+  const currentReadingEstimate = useMemo(
+    () => estimateReadingSeconds(currentSlideMarkdown, readingSpeedPreset),
+    [currentSlideMarkdown, readingSpeedPreset],
+  );
+
+  const missingReadingEstimate = useMemo(
+    () =>
+      estimateDeckTargetSeconds({
+        totalPages: meta?.numPages ?? 0,
+        slides: notesBundle?.slides,
+        pageLabels: meta?.pageLabels,
+        shareNotesByPageLabel,
+        preset: readingSpeedPreset,
+        mode: 'missing-only',
+      }),
+    [meta?.numPages, meta?.pageLabels, notesBundle?.slides, shareNotesByPageLabel, readingSpeedPreset],
+  );
+
+  const overwriteReadingEstimate = useMemo(
+    () =>
+      estimateDeckTargetSeconds({
+        totalPages: meta?.numPages ?? 0,
+        slides: notesBundle?.slides,
+        pageLabels: meta?.pageLabels,
+        shareNotesByPageLabel,
+        preset: readingSpeedPreset,
+        mode: 'overwrite-all',
+      }),
+    [meta?.numPages, meta?.pageLabels, notesBundle?.slides, shareNotesByPageLabel, readingSpeedPreset],
+  );
+
+  const handleChangeReadingSpeedPreset = useCallback((preset: ReadingSpeedPreset) => {
+    setReadingSpeedPreset(preset);
+    void storageService.savePrefs({ readingSpeedPreset: preset });
+  }, []);
+
+  const handleApplyEstimatedTargets = useCallback(
+    async (targets: Record<number, number>) => {
+      if (!meta) return;
+      const entries = Object.entries(targets);
+      if (entries.length === 0) {
+        setReadingTimeAnchor(null);
+        return;
+      }
+
+      const baseBundle =
+        notesBundle ??
+        createEmptyNotesBundle(
+          meta.deckId,
+          meta.fileName,
+          meta.extractedNotes,
+          meta.extractedPdfpcConfig,
+          meta.extractedSlideTargets,
+        );
+      const now = Date.now();
+      const nextSlides = { ...baseBundle.slides };
+      let appliedCount = 0;
+
+      for (const [pageStr, seconds] of entries) {
+        const pageNum = Number.parseInt(pageStr, 10);
+        if (!Number.isInteger(pageNum) || pageNum < 1) continue;
+        if (!Number.isFinite(seconds) || seconds <= 0) continue;
+        const existing = nextSlides[pageNum];
+        nextSlides[pageNum] = {
+          markdown: existing?.markdown ?? '',
+          targetSeconds: Math.round(seconds),
+          updatedAt: now,
+          source: 'manual',
+        };
+        appliedCount += 1;
+      }
+
+      const updatedBundle: DeckNotesBundle = {
+        ...baseBundle,
+        slides: nextSlides,
+      };
+      setNotesBundle(updatedBundle);
+      if (targets[noteOwnerPage] !== undefined) {
+        setSlideTargetInputText(String(targets[noteOwnerPage]));
+      }
+      setReadingTimeAnchor(null);
+      await storageService.saveNotes(updatedBundle);
+      setInfoMessage(
+        locale === 'ja'
+          ? `${t.readingTimeAppliedToast} ${appliedCount} スライド`
+          : `${t.readingTimeAppliedToast} ${appliedCount} slide(s).`,
+      );
+    },
+    [meta, notesBundle, noteOwnerPage, locale, t.readingTimeAppliedToast],
+  );
+
   const handleClearStageOverlay = useCallback(() => {
     if (curtainMode !== 'none') {
       setCurtainMode('none');
@@ -3211,6 +3319,30 @@ export function PresenterConsole() {
         </div>
       </header>
 
+      {/* Fixed Reading Time Estimator Popover */}
+      {readingTimeAnchor && meta && (
+        <ReadingTimePopover
+          anchor={readingTimeAnchor}
+          anchorRef={readingTimeBtnRef}
+          preset={readingSpeedPreset}
+          currentEstimate={currentReadingEstimate}
+          inheritedFromPage={resolvedNote.inheritedFromPage}
+          missingEstimate={missingReadingEstimate}
+          overwriteEstimate={overwriteReadingEstimate}
+          onChangePreset={handleChangeReadingSpeedPreset}
+          onApplyCurrent={() => {
+            if (currentReadingEstimate.estimatedSeconds > 0) {
+              void handleApplyEstimatedTargets({
+                [noteOwnerPage]: currentReadingEstimate.estimatedSeconds,
+              });
+            }
+          }}
+          onApplyMissing={() => void handleApplyEstimatedTargets(missingReadingEstimate.targets)}
+          onApplyAll={() => void handleApplyEstimatedTargets(overwriteReadingEstimate.targets)}
+          onClose={() => setReadingTimeAnchor(null)}
+        />
+      )}
+
       {/* Fixed Laser Color Popover (positioned outside Row 2 overflow-y-hidden) */}
       {laserMenuAnchor && (
         <div
@@ -4010,6 +4142,37 @@ export function PresenterConsole() {
                     />
                     <span>{t.secondsUnit}</span>
                   </label>
+                  <button
+                    ref={readingTimeBtnRef}
+                    type="button"
+                    data-testid="reading-time-button"
+                    data-coachmark-group="notes"
+                    data-coachmark-block="notes-target"
+                    aria-haspopup="dialog"
+                    aria-expanded={readingTimeAnchor !== null}
+                    aria-label={t.readingTimeBtnTooltip}
+                    title={t.readingTimeBtnTooltip}
+                    onClick={() => {
+                      if (readingTimeAnchor) {
+                        setReadingTimeAnchor(null);
+                        return;
+                      }
+                      const rect = readingTimeBtnRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        setReadingTimeAnchor({
+                          top: Math.round(rect.bottom + 6),
+                          left: Math.round(rect.left),
+                        });
+                      }
+                    }}
+                    className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border transition xl:h-7 xl:w-7 ${
+                      readingTimeAnchor
+                        ? 'border-blue-500 bg-blue-600 text-white'
+                        : 'border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700/70 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white'
+                    }`}
+                  >
+                    <Calculator className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
                 </div>
 
                 <div className="flex shrink-0 flex-nowrap items-center gap-1">

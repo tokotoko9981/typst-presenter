@@ -1,3 +1,4 @@
+import type { ReadingSpeedPreset } from '../notes/readingTime.ts';
 import type { CropMode } from '../pdf/types.ts';
 
 export type SlideNoteSource = 'embedded' | 'sidecar' | 'manual';
@@ -52,4 +53,5 @@ export interface PresenterPrefs {
   audienceProgressBar?: boolean;
   shareNotesByPageLabel?: boolean;
   paneSplitRatio?: number;
+  readingSpeedPreset?: ReadingSpeedPreset;
 }

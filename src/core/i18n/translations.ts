@@ -314,6 +314,17 @@ export interface TranslationDict {
   formatBulletTypstSingle: string;
   paneSplitHandleAria: string;
   paneSplitHandleTitle: string;
+  readingTimeBtnTooltip: string;
+  readingTimePopoverAria: string;
+  readingTimeTitle: string;
+  readingSpeedSlow: string;
+  readingSpeedNormal: string;
+  readingSpeedFast: string;
+  readingTimeNoScript: string;
+  readingTimeApplyCurrent: string;
+  readingTimeApplyMissing: string;
+  readingTimeApplyAll: string;
+  readingTimeAppliedToast: string;
 }
 
 export const TRANSLATIONS: Record<Locale, TranslationDict> = {
@@ -624,6 +635,17 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
       'Single .typ file: use typst/presenter-notes.typ (#speaker-note / #presenter-config) or Polylux/Touying <pdfpc>.',
     paneSplitHandleAria: 'Resize presenter panes',
     paneSplitHandleTitle: 'Drag to resize panes (double-click to reset)',
+    readingTimeBtnTooltip: 'Auto-estimate target time',
+    readingTimePopoverAria: 'Target time estimator',
+    readingTimeTitle: 'Estimate Target Time',
+    readingSpeedSlow: 'Slow',
+    readingSpeedNormal: 'Standard',
+    readingSpeedFast: 'Fast',
+    readingTimeNoScript: 'No script text on this slide',
+    readingTimeApplyCurrent: 'Apply to this slide',
+    readingTimeApplyMissing: 'Fill unset slides',
+    readingTimeApplyAll: 'Overwrite all slides',
+    readingTimeAppliedToast: 'Estimated target time applied to',
   },
 
   ja: {
@@ -933,5 +955,16 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
       '単一 .typ 原稿: typst/presenter-notes.typ（#speaker-note / #presenter-config）または Polylux/Touying の <pdfpc> に対応。',
     paneSplitHandleAria: 'スライドとノート領域の幅を調整',
     paneSplitHandleTitle: 'ドラッグで幅を調整（ダブルクリックで初期比率にリセット）',
+    readingTimeBtnTooltip: '原稿文字数から目標時間を自動見積もり',
+    readingTimePopoverAria: '目標時間の自動見積もり',
+    readingTimeTitle: '目標時間の自動見積もり',
+    readingSpeedSlow: 'ゆっくり',
+    readingSpeedNormal: '標準',
+    readingSpeedFast: '早め',
+    readingTimeNoScript: 'このスライドに原稿がありません',
+    readingTimeApplyCurrent: 'このスライドに適用',
+    readingTimeApplyMissing: '未設定のみ一括適用',
+    readingTimeApplyAll: '全スライドへ上書き適用',
+    readingTimeAppliedToast: '目標時間の自動見積もりを反映しました:',
   },
 };

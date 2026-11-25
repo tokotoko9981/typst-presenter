@@ -2,6 +2,10 @@ import {
   clampPaneSplitRatio,
   DEFAULT_PANE_SPLIT_RATIO,
 } from '../layout/paneSplit.ts';
+import {
+  DEFAULT_READING_SPEED_PRESET,
+  normalizeReadingSpeedPreset,
+} from '../notes/readingTime.ts';
 import type { CropMode } from '../pdf/types.ts';
 import type { DeckNotesBundle, PresenterPrefs, StoredDeckRecord } from './types.ts';
 
@@ -43,6 +47,7 @@ export const DEFAULT_PREFS: PresenterPrefs = {
   audienceProgressBar: false,
   shareNotesByPageLabel: true,
   paneSplitRatio: DEFAULT_PANE_SPLIT_RATIO,
+  readingSpeedPreset: DEFAULT_READING_SPEED_PRESET,
 };
 
 export function clampNoteFontSize(px: number): number {
@@ -305,6 +310,9 @@ export class StorageService {
       paneSplitRatio: clampPaneSplitRatio(
         patch.paneSplitRatio ?? current.paneSplitRatio ?? DEFAULT_PANE_SPLIT_RATIO,
       ),
+      readingSpeedPreset: normalizeReadingSpeedPreset(
+        patch.readingSpeedPreset ?? current.readingSpeedPreset,
+      ),
     };
     this.memPrefs = updated;
 
@@ -342,6 +350,7 @@ export class StorageService {
             merged.paneSplitRatio = clampPaneSplitRatio(
               merged.paneSplitRatio ?? DEFAULT_PANE_SPLIT_RATIO,
             );
+            merged.readingSpeedPreset = normalizeReadingSpeedPreset(merged.readingSpeedPreset);
             this.memPrefs = merged;
             resolve(merged);
           } else {

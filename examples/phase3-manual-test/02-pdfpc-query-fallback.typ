@@ -4,7 +4,6 @@
 
 #metadata((t: "Duration", v: 4)) <pdfpc>
 #metadata((t: "LastMinutes", v: 1)) <pdfpc>
-#metadata((t: "EndTime", v: "16:30")) <pdfpc>
 #metadata((t: "NoteFontSize", v: 20)) <pdfpc>
 
 #let mainfont = ("BIZ UDPGothic", "Yu Gothic", "Meiryo", "Noto Sans JP")
@@ -84,7 +83,7 @@
 = 2. ページ遷移と目標時間 (`target: 40`)
 #v(0.5em)
 #card("期待される抽出結果", [
-  - Duration: 4 分 / LastMinutes: 1 分 / EndTime: `16:30` / NoteFontSize: 20px
+  - Duration: 4 分 / LastMinutes: 1 分 / NoteFontSize: 20px
   - Slide 1 target: 25 秒、Slide 2 target: 40 秒
   - PDF 単体にはノートが埋め込まれないため、Tauri 直接コンパイル時のみノートが表示される。
 ])

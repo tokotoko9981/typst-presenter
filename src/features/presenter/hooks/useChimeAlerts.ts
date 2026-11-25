@@ -14,7 +14,6 @@ export interface UseChimeAlertsOptions {
   remainingMs: number;
   lastMinutesWarning: number;
   countdownMinutes: number;
-  endTimeHHMM: string;
   resetToken: number;
 }
 
@@ -30,7 +29,6 @@ export function useChimeAlerts({
   remainingMs,
   lastMinutesWarning,
   countdownMinutes,
-  endTimeHHMM,
   resetToken,
 }: UseChimeAlertsOptions): UseChimeAlertsResult {
   const engineRef = useRef<ChimeEngine | null>(null);
@@ -52,7 +50,7 @@ export function useChimeAlerts({
   // Reset double-fire latch on timer reset or target config change
   useEffect(() => {
     latchRef.current = createResetChimeLatch();
-  }, [resetToken, countdownMinutes, lastMinutesWarning, endTimeHHMM]);
+  }, [resetToken, countdownMinutes, lastMinutesWarning]);
 
   // Seed latch if user turns chime ON mid-talk so already-passed thresholds don't blast immediately
   useEffect(() => {

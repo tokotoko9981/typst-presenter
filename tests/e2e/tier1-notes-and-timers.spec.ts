@@ -429,29 +429,27 @@ test.describe('Tier 1 — Area D: Timers & Pacing Engine', () => {
     errors.assertNoErrors();
   });
 
-  test('T1-D5: End-Time (HH:MM) target mode calculation', async ({ page }) => {
+  test('T1-D5: Duration-only countdown without End-Time input', async ({ page }) => {
     const errors = attachErrorCollector(page);
     await uploadPdfFixture(page, FIXTURE_PATHS.standardDeck);
 
     const timerPanel = getTimerPanel(page);
-    const endTimeInput = page
-      .getByLabel(/end\s*time|終了時刻/i)
-      .or(timerPanel.locator('input[type="time"]'))
-      .first();
-    await expect(endTimeInput).toBeVisible();
+    await expect(timerPanel.locator('input[type="time"]')).toHaveCount(0);
+    await expect(page.getByLabel(/end\s*time|終了時刻/i)).toHaveCount(0);
 
-    const targetDate = new Date(Date.now() + 5 * 60_000);
-    const hh = String(targetDate.getHours()).padStart(2, '0');
-    const mm = String(targetDate.getMinutes()).padStart(2, '0');
-    await endTimeInput.fill(`${hh}:${mm}`);
-    await endTimeInput.press('Enter');
+    const durationInput = page
+      .getByLabel(/duration|countdown|target.*min/i)
+      .or(timerPanel.locator('input[type="number"]').first())
+      .first();
+    await durationInput.fill('5');
+    await durationInput.press('Enter');
 
     const startBtn = timerPanel.getByRole('button', { name: /start|開始/i }).first();
     await startBtn.click();
 
     await expect(async () => {
       const txt = await timerPanel.innerText();
-      expect(txt).toMatch(/0[345]:[0-5]\d/);
+      expect(txt).toMatch(/0[45]:[0-5]\d/);
     }).toPass({ timeout: 5_000 });
 
     errors.assertNoErrors();

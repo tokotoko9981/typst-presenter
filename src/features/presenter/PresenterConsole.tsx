@@ -68,7 +68,11 @@ import {
   mergeHotReloadNotesBundle,
   parseSidecarFileContent,
 } from '../../core/notes/NotesManager.ts';
-import { hasRepeatedPageLabels, resolveNoteForPage } from '../../core/notes/logicalSlides.ts';
+import {
+  hasRepeatedPageLabels,
+  isSameLogicalSlide,
+  resolveNoteForPage,
+} from '../../core/notes/logicalSlides.ts';
 import type { DeckNotesBundle } from '../../core/notes/types.ts';
 import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
 import type { CropMode, LoadedDeckMeta, OutlineNode } from '../../core/pdf/types.ts';
@@ -119,7 +123,6 @@ import {
   computeTimerSnapshot,
   formatCountdownMMSS,
   formatDurationMMSS,
-  parseValidHHMM,
 } from '../../core/timer/TimerEngine.ts';
 import { HelpModal, type HelpModalTab } from './HelpModal.tsx';
 import { NotesImportModal } from './NotesImportModal.tsx';
@@ -313,7 +316,6 @@ export function PresenterConsole() {
   const [lastMinutesInputText, setLastMinutesInputText] = useState<string>(
     String(DEFAULT_PREFS.lastMinutesWarning),
   );
-  const [endTimeHHMM, setEndTimeHHMM] = useState<string>('');
   const [slideTargetInputText, setSlideTargetInputText] = useState<string>('');
   const [autoStartTimerOnFirstNav, setAutoStartTimerOnFirstNav] = useState<boolean>(false);
   const [nowTick, setNowTick] = useState<number>(() => Date.now());
@@ -610,7 +612,6 @@ export function PresenterConsole() {
       setCountdownInputText(String(prefs.countdownMinutes));
       setLastMinutesWarning(prefs.lastMinutesWarning);
       setLastMinutesInputText(String(prefs.lastMinutesWarning));
-      setEndTimeHHMM(prefs.endTimeHHMM || '');
       setAutoStartTimerOnFirstNav(Boolean(prefs.autoStartTimerOnFirstNav));
       setLaserColor(prefs.laserColor || DEFAULT_PREFS.laserColor);
       setPenColor(prefs.penColor || DEFAULT_PREFS.penColor);
@@ -760,8 +761,17 @@ export function PresenterConsole() {
 
       const now = Date.now();
       setNowTick(now);
-      setSlideAccumulatedMs(0);
-      setSlideLastResumeMs(timerRunning ? now : null);
+      const keepSlideTimer = isSameLogicalSlide(
+        currentPage,
+        clamped,
+        meta.pageLabels,
+        meta.numPages,
+        shareNotesByPageLabel,
+      );
+      if (!keepSlideTimer) {
+        setSlideAccumulatedMs(0);
+        setSlideLastResumeMs(timerRunning ? now : null);
+      }
 
       const willAutoStart = autoStartTimerOnFirstNav && !timerRunning && clamped !== currentPage;
       const nextRunning = timerRunning || willAutoStart;
@@ -789,7 +799,15 @@ export function PresenterConsole() {
         syncBridgeRef.current?.post({ type: 'ZOOM_STATE', zoom: DEFAULT_ZOOM_STATE });
       }
     },
-    [meta, timerRunning, autoStartTimerOnFirstNav, currentPage, frozen, strokesByPage],
+    [
+      meta,
+      timerRunning,
+      autoStartTimerOnFirstNav,
+      currentPage,
+      frozen,
+      strokesByPage,
+      shareNotesByPageLabel,
+    ],
   );
 
   const applySidecarContent = useCallback(
@@ -807,8 +825,7 @@ export function PresenterConsole() {
       const hasMeta =
         parsed.durationMinutes !== undefined ||
         parsed.lastMinutesWarning !== undefined ||
-        parsed.noteFontSizePx !== undefined ||
-        parsed.endTimeHHMM !== undefined;
+        parsed.noteFontSizePx !== undefined;
 
       if (slideNums.length === 0 && !hasMeta) {
         const fallbackBundle =
@@ -830,13 +847,10 @@ export function PresenterConsole() {
       const nextFont = parsed.noteFontSizePx
         ? clampNoteFontSize(parsed.noteFontSizePx)
         : noteFontSizePx;
-      const nextEndTime =
-        parsed.endTimeHHMM ?? (effectiveDuration !== undefined ? '' : endTimeHHMM);
 
       if (effectiveDuration !== undefined) {
         setCountdownMinutes(effectiveDuration);
         setCountdownInputText(String(effectiveDuration));
-        setEndTimeHHMM('');
       }
       if (parsed.lastMinutesWarning !== undefined) {
         setLastMinutesWarning(parsed.lastMinutesWarning);
@@ -845,15 +859,11 @@ export function PresenterConsole() {
       if (parsed.noteFontSizePx !== undefined) {
         setNoteFontSizePx(nextFont);
       }
-      if (parsed.endTimeHHMM !== undefined) {
-        setEndTimeHHMM(parsed.endTimeHHMM);
-      }
 
       await storageService.savePrefs({
         countdownMinutes: nextDuration,
         lastMinutesWarning: nextWarning,
         noteFontSizePx: nextFont,
-        endTimeHHMM: nextEndTime,
       });
 
       const updatedBundle: DeckNotesBundle = {
@@ -862,7 +872,6 @@ export function PresenterConsole() {
         fileName: targetFileName,
         globalTargetSeconds: nextDuration * 60,
         lastMinutesWarning: nextWarning,
-        ...(nextEndTime ? { endTimeHHMM: nextEndTime } : {}),
         ...(parsed.qrUrl ? { qrUrl: parsed.qrUrl } : {}),
         ...(parsed.qrLabel ? { qrLabel: parsed.qrLabel } : {}),
         noteFontSizePx: nextFont,
@@ -895,7 +904,7 @@ export function PresenterConsole() {
 
       return updatedBundle;
     },
-    [countdownMinutes, lastMinutesWarning, noteFontSizePx, endTimeHHMM, locale, t],
+    [countdownMinutes, lastMinutesWarning, noteFontSizePx, locale, t],
   );
 
   // Load a PDF from ArrayBuffer
@@ -1004,10 +1013,8 @@ export function PresenterConsole() {
           if (embeddedOrDerivedDuration !== undefined) {
             setCountdownMinutes(embeddedOrDerivedDuration);
             setCountdownInputText(String(embeddedOrDerivedDuration));
-            setEndTimeHHMM('');
             await storageService.savePrefs({
               countdownMinutes: embeddedOrDerivedDuration,
-              endTimeHHMM: '',
             });
             if (bundle.globalTargetSeconds !== embeddedOrDerivedDuration * 60) {
               bundle = { ...bundle, globalTargetSeconds: embeddedOrDerivedDuration * 60 };
@@ -1021,9 +1028,6 @@ export function PresenterConsole() {
           if (loadedMeta.extractedPdfpcConfig?.noteFontSize) {
             const clampedFont = clampNoteFontSize(loadedMeta.extractedPdfpcConfig.noteFontSize);
             setNoteFontSizePx(clampedFont);
-          }
-          if (loadedMeta.extractedPdfpcConfig?.endTimeHHMM) {
-            setEndTimeHHMM(loadedMeta.extractedPdfpcConfig.endTimeHHMM);
           }
           setNotesBundle(bundle);
           if (bundle.qrUrl) {
@@ -1326,8 +1330,7 @@ export function PresenterConsole() {
         if (targetMin !== undefined) {
           setCountdownMinutes(targetMin);
           setCountdownInputText(String(targetMin));
-          setEndTimeHHMM('');
-          await storageService.savePrefs({ countdownMinutes: targetMin, endTimeHHMM: '' });
+          await storageService.savePrefs({ countdownMinutes: targetMin });
           if (activeNotes.globalTargetSeconds !== targetMin * 60) {
             const updatedBundle = { ...activeNotes, globalTargetSeconds: targetMin * 60 };
             setNotesBundle(updatedBundle);
@@ -2098,7 +2101,6 @@ export function PresenterConsole() {
         slideLastResumeTimestampMs: slideLastResumeMs,
         countdownMinutes,
         lastMinutesWarning,
-        endTimeHHMM: endTimeHHMM || undefined,
         slideTargetSeconds: currentSlideEntry?.targetSeconds,
         nowMs: nowTick,
       }),
@@ -2110,7 +2112,6 @@ export function PresenterConsole() {
       slideLastResumeMs,
       countdownMinutes,
       lastMinutesWarning,
-      endTimeHHMM,
       currentSlideEntry?.targetSeconds,
       nowTick,
     ],
@@ -2123,7 +2124,6 @@ export function PresenterConsole() {
     remainingMs: timerSnapshot.remainingMs,
     lastMinutesWarning,
     countdownMinutes,
-    endTimeHHMM,
     resetToken: chimeResetToken,
   });
 
@@ -2158,8 +2158,7 @@ export function PresenterConsole() {
       const clamped = Math.min(600, Math.max(1, Math.round(parsed)));
       setCountdownMinutes(clamped);
       setCountdownInputText(String(clamped));
-      setEndTimeHHMM('');
-      void storageService.savePrefs({ countdownMinutes: clamped, endTimeHHMM: '' });
+      void storageService.savePrefs({ countdownMinutes: clamped });
       if (notesBundleRef.current) {
         const updatedBundle: DeckNotesBundle = {
           ...notesBundleRef.current,
@@ -2182,20 +2181,6 @@ export function PresenterConsole() {
       void storageService.savePrefs({ lastMinutesWarning: clamped });
     } else {
       setLastMinutesInputText(String(lastMinutesWarning));
-    }
-  };
-
-  const commitEndTimeInput = (raw: string) => {
-    if (!raw || raw.trim() === '') {
-      setEndTimeHHMM('');
-      void storageService.savePrefs({ endTimeHHMM: '' });
-      return;
-    }
-    const valid = parseValidHHMM(raw);
-    if (valid) {
-      const formatted = `${String(valid.hh).padStart(2, '0')}:${String(valid.mm).padStart(2, '0')}`;
-      setEndTimeHHMM(formatted);
-      void storageService.savePrefs({ endTimeHHMM: formatted });
     }
   };
 
@@ -3673,8 +3658,8 @@ export function PresenterConsole() {
                   </button>
                 </div>
 
-                {/* Duration, Warning & End-Time inputs */}
-                <div className="grid grid-cols-3 gap-1 text-[10px]">
+                {/* Duration & Warning inputs */}
+                <div className="grid grid-cols-2 gap-1.5 text-[10px]">
                   <label className="flex min-w-0 flex-col text-slate-500 dark:text-slate-400">
                     <span className="truncate">{t.durationMin}</span>
                     <input
@@ -3707,23 +3692,6 @@ export function PresenterConsole() {
                         }
                       }}
                       onBlur={() => commitWarningInput(lastMinutesInputText)}
-                      className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
-                    />
-                  </label>
-
-                  <label className="flex min-w-0 flex-col text-slate-500 dark:text-slate-400">
-                    <span className="truncate">{t.endTimeLabel}</span>
-                    <input
-                      type="time"
-                      aria-label="End time"
-                      value={endTimeHHMM}
-                      onChange={(e) => commitEndTimeInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          commitEndTimeInput((e.target as HTMLInputElement).value);
-                        }
-                      }}
                       className="mt-0.5 rounded border border-slate-300 bg-slate-50 px-1 py-0.5 font-mono text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                     />
                   </label>

@@ -540,7 +540,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
 
     helpFormatMarkdownTitle: 'Markdown (--- or <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      'Separate slides with --- or explicit <!-- slide: 2 --> markers. Add <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, endTime, qrUrl) to configure the timer and Q&A QR.',
+      'Separate slides with --- or explicit <!-- slide: 2 --> markers. Add <!-- target: 60 --> and YAML frontmatter (duration, lastMinutes, qrUrl) to configure the timer and Q&A QR.',
     helpFormatMarpTitle: 'Marp / Slidev Source .md',
     helpFormatMarpBody:
       'Slide formatting directives (paginate:, layout:, <!--fit-->) are removed and HTML speaker comments are assigned to each slide.',
@@ -847,7 +847,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
 
     helpFormatMarkdownTitle: 'Markdown ノート (--- / <!-- slide: N -->)',
     helpFormatMarkdownBody:
-      '--- でスライドを区切るか、<!-- slide: 2 --> でページを指定します。<!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・endTime・qrUrl）も認識します。',
+      '--- でスライドを区切るか、<!-- slide: 2 --> でページを指定します。<!-- target: 60 --> や YAML frontmatter（duration・lastMinutes・qrUrl）も認識します。',
     helpFormatMarpTitle: 'Marp / Slidev 原稿 Markdown',
     helpFormatMarpBody:
       '.md 原稿をそのまま読み込めます。paginate:・layout:・<!--fit--> などの設定行を除き、ノートコメントのみを抽出します。',

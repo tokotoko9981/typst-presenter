@@ -76,7 +76,6 @@ export function computeTimerSnapshot(params: {
   slideLastResumeTimestampMs: number | null;
   countdownMinutes: number;
   lastMinutesWarning: number;
-  endTimeHHMM?: string;
   slideTargetSeconds?: number;
   nowMs?: number;
 }): TimerSnapshot {
@@ -104,10 +103,7 @@ export function computeTimerSnapshot(params: {
       ? params.countdownMinutes
       : 15;
   const countdownTargetMs = safeMinutes * 60_000;
-
-  const endTimeTarget = resolveEndTimeTargetMs(params.endTimeHHMM, now);
-  const remainingMs =
-    endTimeTarget !== null ? endTimeTarget - now : countdownTargetMs - totalElapsedMs;
+  const remainingMs = countdownTargetMs - totalElapsedMs;
 
   const safeWarningMin =
     Number.isFinite(params.lastMinutesWarning) && params.lastMinutesWarning >= 0

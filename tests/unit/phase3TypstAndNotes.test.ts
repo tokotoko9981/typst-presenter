@@ -7,6 +7,7 @@ import {
 import {
   buildLogicalSlideGroups,
   hasRepeatedPageLabels,
+  isSameLogicalSlide,
   resolveNoteForPage,
 } from '../../src/core/notes/logicalSlides.ts';
 import {
@@ -26,6 +27,7 @@ import {
   aggregateReportByLogicalSlide,
   type RehearsalReport,
 } from '../../src/core/timer/RehearsalTracker.ts';
+import { computeTimerSnapshot } from '../../src/core/timer/TimerEngine.ts';
 import { parseTypstDiagnostics } from '../../src/core/typst/typstDiagnostics.ts';
 import {
   mergeEmbeddedWithTypstQuery,
@@ -250,6 +252,38 @@ describe('Phase 3: Typst Single-File, Hot-Reload Provenance, Logical Slides & Di
         deltaSeconds: 5,
         status: 'overtime',
       });
+    });
+
+    it('detects same logical slide for Option C subslide timer continuity', () => {
+      const labels = ['1', '2', '2', '2', '3'];
+      expect(isSameLogicalSlide(2, 3, labels, 5, true)).toBe(true);
+      expect(isSameLogicalSlide(3, 4, labels, 5, true)).toBe(true);
+      expect(isSameLogicalSlide(4, 2, labels, 5, true)).toBe(true);
+
+      // Crossing logical boundaries or disabling sharing resets slide timer
+      expect(isSameLogicalSlide(1, 2, labels, 5, true)).toBe(false);
+      expect(isSameLogicalSlide(4, 5, labels, 5, true)).toBe(false);
+      expect(isSameLogicalSlide(2, 3, labels, 5, false)).toBe(false);
+      expect(isSameLogicalSlide(2, 3, ['1', '2', '3', '4', '5'], 5, true)).toBe(false);
+      expect(isSameLogicalSlide(2, 3, null, 5, true)).toBe(false);
+    });
+
+    it('computes countdown directly from countdownMinutes without end-time override', () => {
+      const now = 1_700_000_000_000;
+      const snap = computeTimerSnapshot({
+        running: true,
+        accumulatedElapsedMs: 30_000,
+        lastResumeTimestampMs: now - 15_000,
+        slideAccumulatedElapsedMs: 5_000,
+        slideLastResumeTimestampMs: now - 5_000,
+        countdownMinutes: 5,
+        lastMinutesWarning: 1,
+        nowMs: now,
+      });
+      expect(snap.totalElapsedMs).toBe(45_000);
+      expect(snap.countdownTargetMs).toBe(300_000);
+      expect(snap.remainingMs).toBe(255_000);
+      expect(snap.slideElapsedMs).toBe(10_000);
     });
   });
 

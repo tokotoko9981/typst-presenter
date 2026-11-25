@@ -596,44 +596,28 @@ test.describe('Tier 2 — Boundary, Negative & Edge Cases (Areas A–G)', () => 
     await durationInput.fill('-5');
     await durationInput.press('Enter');
 
-    const endTimeInput = page
-      .getByLabel(/end\s*time|終了時刻/i)
-      .or(timerPanel.locator('input[type="time"]'))
-      .first();
-    if ((await endTimeInput.count()) > 0) {
-      await endTimeInput.evaluate((el) => {
-        const input = el as HTMLInputElement;
-        input.value = '25:99';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-    }
-
     const panelText = await timerPanel.innerText();
     expect(panelText).not.toContain('NaN');
     errors.assertNoErrors();
   });
 
-  test('T2-D2: end_time already in the past triggers immediate overtime', async ({ page }) => {
+  test('T2-D2: legacy endTime frontmatter is ignored in favor of duration countdown', async ({ page }) => {
     const errors = attachErrorCollector(page);
     await uploadPdfFixture(page, FIXTURE_PATHS.standardDeck);
-
-    const timerPanel = getTimerPanel(page);
-    const endTimeInput = page
-      .getByLabel(/end\s*time|終了時刻/i)
-      .or(timerPanel.locator('input[type="time"]'))
-      .first();
 
     const pastDate = new Date(Date.now() - 5 * 60_000);
     const hh = String(pastDate.getHours()).padStart(2, '0');
     const mm = String(pastDate.getMinutes()).padStart(2, '0');
-    await endTimeInput.fill(`${hh}:${mm}`);
-    await endTimeInput.press('Enter');
 
-    const startBtn = timerPanel.getByRole('button', { name: /start|開始/i }).first();
-    await startBtn.click();
+    await page.locator('input[type="file"][accept*=".md" i]').first().setInputFiles({
+      name: 'legacy-endtime.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from(`---\nduration: 6\nendTime: "${hh}:${mm}"\n---\n<!-- slide: 1 -->\nNote 1`),
+    });
 
-    await expect(timerPanel).toContainText(/\+0[45]:[0-5]\d/, { timeout: 5_000 });
+    const timerPanel = getTimerPanel(page);
+    await expect(timerPanel.locator('input[type="time"]')).toHaveCount(0);
+    await expect(page.getByTestId('countdown-timer')).toContainText(/0[56]:[0-5]\d/);
     expect(await timerPanel.innerText()).not.toContain('NaN');
     errors.assertNoErrors();
   });

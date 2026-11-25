@@ -130,6 +130,52 @@ test.describe('Phase 3 — Single .typ Notes, Logical Slides, Direct Overwrite &
     errors.assertNoErrors();
   });
 
+  test('P3-5: Option C keeps per-slide timer running across subslides and resets across logical slides', async ({
+    page,
+  }) => {
+    const errors = attachErrorCollector(page);
+    const subslidePdf = path.resolve(
+      process.cwd(),
+      'examples/phase3-manual-test/03-subslides-pagelabels.pdf',
+    );
+    await page.goto('/#/');
+    await page.locator('input[type="file"][accept*="pdf" i]').first().setInputFiles(subslidePdf);
+    await waitForDeckLoaded(page);
+
+    // Move to physical page 2 (logical slide 2, 1/3) and start timer
+    await jumpToSlide(page, 2);
+    await page.getByRole('button', { name: /^Start$|開始/i }).first().click();
+
+    await expect(async () => {
+      const txt = await page.getByTestId('slide-elapsed').innerText();
+      expect(txt).not.toBe('00:00');
+    }).toPass({ timeout: 4_000 });
+
+    // Move to physical page 3 (logical slide 2, 2/3): slide timer must NOT reset to 00:00
+    await pressShortcut(page, 'ArrowRight');
+    expect(await getSlideCounter(page)).toEqual({ current: 3, total: 5 });
+    const afterSubslide = await page.getByTestId('slide-elapsed').innerText();
+    expect(afterSubslide).not.toBe('00:00');
+
+    // Move to physical page 5 (logical slide 3): slide timer MUST reset to 00:00
+    await jumpToSlide(page, 5);
+    await expect(page.getByTestId('slide-elapsed')).toHaveText('00:00');
+
+    // Disable subslide sharing on page 2 -> moving 2 -> 3 MUST reset slide timer
+    await jumpToSlide(page, 2);
+    await expect(async () => {
+      const txt = await page.getByTestId('slide-elapsed').innerText();
+      expect(txt).not.toBe('00:00');
+    }).toPass({ timeout: 4_000 });
+    await page.getByTestId('logical-slide-toggle').click();
+    await page.getByTestId('logical-slide-toggle').blur();
+    await pressShortcut(page, 'ArrowRight');
+    expect(await getSlideCounter(page)).toEqual({ current: 3, total: 5 });
+    await expect(page.getByTestId('slide-elapsed')).toHaveText('00:00');
+
+    errors.assertNoErrors();
+  });
+
   test('P3-3: Direct .md overwrite via File System Access API and Marp protection guard', async ({
     page,
   }) => {

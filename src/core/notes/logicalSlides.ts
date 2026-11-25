@@ -163,3 +163,22 @@ export function resolveNoteForPage(
     group,
   };
 }
+
+/**
+ * Returns true when `fromPage` and `toPage` belong to the same multi-page
+ * logical slide group (repeated `pageLabels`) while subslide sharing is enabled.
+ */
+export function isSameLogicalSlide(
+  fromPage: number,
+  toPage: number,
+  pageLabels: string[] | null | undefined,
+  numPages: number,
+  shareAcrossSubslides: boolean,
+): boolean {
+  if (!shareAcrossSubslides || !hasRepeatedPageLabels(pageLabels, numPages)) {
+    return false;
+  }
+  const fromGroup = resolveLogicalSlideGroup(fromPage, pageLabels, numPages);
+  const toGroup = resolveLogicalSlideGroup(toPage, pageLabels, numPages);
+  return fromGroup.primaryPage === toGroup.primaryPage && fromGroup.subCount > 1;
+}

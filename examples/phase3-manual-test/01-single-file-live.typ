@@ -5,7 +5,6 @@
 #presenter-config(
   duration: 5,
   last-minutes: 1,
-  end-time: "15:00",
   note-font-size: 18,
   qr-url: "https://example.com/phase3-test",
   qr-label: "Phase 3 テスト資料",
@@ -67,12 +66,15 @@
 // ============================================================
 // Slide 1
 // ============================================================
-#speaker-note(target: 30, "## Slide 1: 単一ファイル構成の確認
+#speaker-note(
+  target: 30,
+  "## Slide 1: 単一ファイル構成の確認
 
-- 目標時間: 30 秒（全体 5 分 / 残り 1 分警告 / 終了時刻 15:00）
+- 目標時間: 30 秒（全体 5 分 / 残り 1 分警告）
 - ノート文字サイズ: 18px
 - QR URL: `https://example.com/phase3-test`
-- `--input mode=rehearsal` を指定して再コンパイルすると、右上のバッジが変化します。")
+- `--input mode=rehearsal` を指定して再コンパイルすると、右上のバッジが変化します。",
+)
 
 #grid(
   columns: (1fr, auto),
@@ -99,7 +101,6 @@
   card("埋め込み設定 (#presenter-config)", [
     - `duration: 5`（全体 5:00）
     - `last-minutes: 1`（残り 1 分警告）
-    - `end-time: "15:00"`
     - `note-font-size: 18`
   ]),
   card("確認ポイント", [
@@ -114,11 +115,16 @@
 // ============================================================
 // Slide 2
 // ============================================================
-#speaker-note(target: 45, "## Slide 2: 手動編集（manual）保護テスト
+#speaker-note(
+  target: 45,
+  "## Slide 2: 手動編集（manual）保護テスト
 
 1. Presenter UI でこのノートを少し編集して保存してください（provenance が `manual` になります）。
 2. 次に `.typ` ファイルを編集・保存してホットリロードを走らせます。
-3. このスライドの手動編集内容が上書きされずに残ることを確認します。")
+3. このスライドの手動編集内容が上書きされずに残ることを確認します。
+BRAIN
+",
+)
 
 = 2. Provenance Hot-Reload（手動編集の保護）
 #v(0.5em)
@@ -133,10 +139,15 @@
 // ============================================================
 // Slide 3
 // ============================================================
-#speaker-note(target: 60, "## Slide 3: 自動更新（embedded）& Live Compile Guard
+#speaker-note(
+  target: 60,
+  "## Slide 3: 自動更新（embedded）& Live Compile Guard
 
 - このテキストを `.typ` 側で書き換えて保存すると、Presenter UI 上に即座に反映されます（`embedded`）。
-- 下のコメントアウトされた構文エラー行を外して保存すると、Live Compile Guard の挙動を確認できます。")
+- 下のコメントアウトされた構文エラー行を外して保存すると、Live Compile Guard の挙動を確認できます。
+tsts
+",
+)
 
 = 3. 自動更新 & Live Compile Guard
 #v(0.5em)
@@ -154,22 +165,25 @@
 // ============================================================
 // Slide 4
 // ============================================================
-#speaker-note(target: 30, "## Slide 4: QR オーバーレイ & Close Guard
+#speaker-note(
+  target: 30,
+  "## Slide 4: QR オーバーレイ & Close Guard
 
-- `Q` キーで QR オーバーレイを表示し、`Phase 3 テスト資料` が表示されることを確認してください。
-- タイマー再生中にアプリウィンドウを閉じようとすると Close Guard ダイアログが出ます。")
+- 上部ツールバーの QR アイコンボタンで QR オーバーレイを表示し、`Phase 3 テスト資料` が表示されることを確認してください。
+- ツールバーの盾アイコン「誤リロード防止」を ON にした状態でウィンドウを閉じようとすると Close Guard ダイアログが出ます。",
+)
 
 = 4. QR オーバーレイ & Close Guard テスト
 #v(0.5em)
 #grid(
   columns: (1fr, 1fr),
   gutter: 14pt,
-  card("QR オーバーレイ (Q キー)", [
+  card("QR オーバーレイ（ツールバー）", [
     - `#presenter-config` で指定した URL とラベルが Audience 側へ同期表示される。
     - URL: `https://example.com/phase3-test`
   ]),
   card("Close Guard (Tauri)", [
-    - タイマー稼働中にウィンドウを閉じると確認ダイアログが表示される。
+    - ツールバーの盾アイコン「誤リロード防止」を ON にした状態でウィンドウを閉じると確認ダイアログが表示される。
     - キャンセルで継続、確定でアプリ終了。
   ]),
 )

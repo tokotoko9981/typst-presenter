@@ -85,6 +85,7 @@ test.describe('Phase 4 — Draggable Presenter Pane Split', () => {
 
     await handle.dblclick();
     await expect(handle).toHaveAttribute('aria-valuenow', '58');
+    await page.waitForTimeout(150);
 
     await page.reload();
     await expect(page.getByTestId('pane-split-handle')).toHaveAttribute('aria-valuenow', '58');

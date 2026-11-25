@@ -1,8 +1,11 @@
+// Build: typst compile --root . examples/lt-typst-presenter.typ examples/lt-typst-presenter.pdf
 #import "@preview/polylux:0.4.0": *
+#import "../typst/presenter-notes.typ": enable-presenter-notes, presenter-config, speaker-note
 
 // =============================================================================
-// Typst Presenter 公式サンプル & LT デッキ
+// Typst Presenter 公式サンプル & LT デッキ（v0.4.1）
 // - 完全モノクロ暗色基調・単一フォント・余白重視
+// - typst/presenter-notes.typ による単一 PDF ノート埋め込み対応
 // =============================================================================
 
 #let mainfont = ("UD Digi Kyokasho NK", "BIZ UDPGothic", "Meiryo", "Yu Gothic")
@@ -28,7 +31,7 @@
 #show link: underline
 
 #set table(
-  inset: (y: 0.6em, x: 0.55em),
+  inset: (y: 0.56em, x: 0.55em),
   stroke: (x: none, y: 1pt + rule-color),
 )
 #show table.cell.where(y: 0): set text(fill: muted-color)
@@ -39,7 +42,15 @@
   inset: 12pt,
   radius: 5pt,
   width: 100%,
-  text(fill: rgb("#e6ebf2"), size: 15pt, it),
+  text(fill: rgb("#e6ebf2"), size: 14.5pt, it),
+)
+
+#show: enable-presenter-notes
+#presenter-config(
+  duration: 5,
+  last-minutes: 1,
+  qr-url: "https://github.com/tokotoko9981/typst-presenter",
+  qr-label: "Typst Presenter Repository",
 )
 
 #let slide_header(body) = {
@@ -55,15 +66,19 @@
 }
 
 // ===== Slide 1: 表紙 =====
-#slide(
-  align(horizon + center)[
+#slide[
+  #align(horizon + center)[
     #text(size: 1.9em, weight: "bold")[Typst Presenter]
     #v(0.6em)
     #text(size: 1.15em)[Typst と汎用 PDF に対応したローカル完結 2 画面プレゼンアプリ]
     #v(1.2em)
     #text(size: 0.9em)[Web / PWA / Tauri v2 Desktop]
-  ],
-)
+  ]
+  #speaker-note(
+    target: 20,
+    "### オープニング（0:00 - 0:20）\n\n- こんにちは。本日はローカル完結型の 2 画面プレゼンアプリ **Typst Presenter** を 5 分間でご紹介します。\n- ブラウザ上の Web アプリに加え、オフライン PWA と Tauri デスクトップ版で動きます。\n- 右の開始ボタンと `Space` キーで発表を進められます。",
+  )
+]
 
 // ===== Slide 2: 課題 =====
 #slide[
@@ -86,6 +101,10 @@
       視線と操作が複数画面へ分散 → *進行のズレや時間配分の崩れを招く*
     ]
   ]
+  #speaker-note(
+    target: 30,
+    "### 課題：PDF ビューア単体での発表（0:20 - 0:50）\n\n- 結論から言うと、標準の PDF ビューアだけでは本番中の情報管理が分散してしまいます。\n- 手元で原稿を読むには別ウィンドウやスマホを並べる必要があり、タイマーも別アプリで計測しがちです。次のスライドの事前確認や聴衆画面の一時固定も行えません。\n- さらにレーザーや手書き強調も使えないため、発表中に視線があちこちへ散り、操作ミスや時間配分の崩れを招きます。",
+  )
 ]
 
 // ===== Slide 3: 解決策 =====
@@ -101,7 +120,7 @@
       radius: 5pt,
     )[
       #align(center)[
-        任意のスライド PDF ＋ Markdown・pdfpc 原稿 \
+        任意のスライド PDF ＋ Markdown・pdfpc・単一 .typ 原稿 \
         ↓ \
         *外部送信なしのローカル 2 画面コンソールで統合表示*
       ]
@@ -110,50 +129,62 @@
 
   #v(0.9em)
   - Typst・Marp・Beamer・PowerPoint から出力した PDF をそのまま使える
-  - サーバーへ一切アップロードせず、ブラウザ・PWA・デスクトップ版で完結する
-]
-
-// ===== Slide 4: 機能 1 2 画面同期 =====
-#slide[
-  #slide_header("機能 1: 2 画面リアルタイム同期とリロード復旧")
-
-  #set text(size: 18.5pt)
-  #table(
-    columns: (0.95fr, 1.95fr),
-    align: (left + horizon, left + horizon),
-    table.header([構成要素], [役割と特徴]),
-    [発表者コンソール], [現在スライド、次スライド、原稿、タイマー、強調ツールを集約],
-    [聴衆用ディスプレイ], [純黒背景にスライドのみを表示（F キー全画面化、外部画面選択可）],
-    [BroadcastChannel 同期], [ページ遷移・カーテン・レーザー・描線を低遅延で即時反映],
-    [IndexedDB 履歴保存], [PDF 本体と現在ページを保持し、F5 更新や履歴から即座に復旧],
+  - 単一 .typ 原稿なら、PDF 内へのノート埋め込みと直接コンパイルにも対応する
+  #speaker-note(
+    target: 35,
+    "### 解決策：PDF と Markdown 原稿の疎結合（0:50 - 1:25）\n\n- そこで本アプリでは、投影するスライドを PDF、手元で読む原稿を Markdown・pdfpc・単一 .typ 埋め込みとして統合しました。\n- Typst はもちろん、Marp や Beamer、PowerPoint など作成ツールを問わず、出力した PDF をそのままドラッグ＆ドロップで読み込めます。\n- 外部サーバーへ一切アップロードせず、ブラウザ・PWA・デスクトップ版で完結するため安心して運用できます。",
   )
 ]
 
-// ===== Slide 5: 機能 2 発表者ノート =====
+// ===== Slide 4: 機能 1 2 画面同期とコンソール配置 =====
 #slide[
-  #slide_header("機能 2: 発表者ノートとスライド別目標時間")
+  #slide_header("機能 1: 2 画面リアルタイム同期とコンソール配置")
+
+  #set text(size: 18pt)
+  #table(
+    columns: (0.9fr, 2.0fr),
+    align: (left + horizon, left + horizon),
+    table.header([構成要素], [役割と特徴]),
+    [発表者コンソール], [現在・次スライド、原稿、タイマーを集約し左右比率を調整],
+    [聴衆用ディスプレイ], [純黒背景にスライドのみ映し、進捗バーや外部全画面に対応],
+    [BroadcastChannel 同期], [ページ遷移・カーテン・拡大・QR 投影・描線を低遅延同期],
+    [IndexedDB 履歴・保護], [PDF と現在位置を保持して復旧し、誤終了・誤更新を抑止],
+  )
+  #speaker-note(
+    target: 35,
+    "### 機能 1：2 画面リアルタイム同期とコンソール配置（1:25 - 2:00）\n\n- 1 つ目の機能は、発表者コンソールと聴衆用ディスプレイのリアルタイム同期です。\n- 手元画面のスライドとノート領域は中央のハンドルをドラッグして好みの比率に調整でき、設定も自動保存されます。\n- BroadcastChannel で低遅延に同期し、PDF 本体と現在ページを IndexedDB に保持するため、誤更新してもすぐ復旧できます。",
+  )
+]
+
+// ===== Slide 5: 機能 2 発表者ノートと目標時間管理 =====
+#slide[
+  #slide_header("機能 2: 発表者ノートと目標時間管理")
 
   #grid(
-    columns: (1.05fr, 0.95fr),
-    gutter: 1.2em,
+    columns: (1.02fr, 0.98fr),
+    gutter: 1.1em,
     align(left + horizon)[
-      - 整形表示とライブ編集 \
-        A+ / A- で文字#box[拡縮]、E キーでその場編集
+      - 単一 .typ 埋め込みとライブ編集 \
+        A+ / A- で文字#box[拡縮]、E キーで編集、元 .md へ直接上書き
 
-      - 多様な原稿フォーマット \
-        Markdown・Marp・Slidev・pdfpc・Typst 注釈に対応
+      - 多様な原稿とサブスライド共有 \
+        Markdown・Marp・Slidev・pdfpc・重複ページ番号共有に対応
 
-      - スライド別の目標秒数 \
-        各ページの目安を設定し、進行の余裕と超過を判定
+      - 原稿文字数からの自動目標見積もり \
+        日英の読み上げ速度から推奨秒数を算出して一括反映
     ],
     align(left + horizon)[
-      Markdown ノート記述例
+      単一 .typ ノート埋め込み例
       #v(0.3em)
       #raw(
         block: true,
-        "---\nduration: 5\nlastMinutes: 1\n---\n\n<!-- slide: 1 -->\n<!-- target: 20 -->\n### オープニング\n- 結論を先に述べる\n- **重要数値**を強調",
+        "#import \"presenter-notes.typ\": *\n#show: enable-presenter-notes\n#presenter-config(\n  duration: 5, last-minutes: 1,\n  qr-url: \"https://example.com\",\n)\n#speaker-note(target: 20)[\n  - 結論を先に述べる\n]",
       )
     ],
+  )
+  #speaker-note(
+    target: 35,
+    "### 機能 2：発表者ノートと目標時間管理（2:00 - 2:35）\n\n- 2 つ目は、発表者ノートと目標時間の管理機能です。\n- Typst の `presenter-notes.typ` を使えば 1 つの PDF に原稿と目標秒数を埋め込め、外部 `.md` も `E` キー編集から直接上書き保存できます。\n- 原稿の文字数と英単語数から推奨秒数を自動見積もりして未設定スライドへ一括反映する補助機能も備えました。",
   )
 ]
 
@@ -163,59 +194,77 @@
 
   #set text(size: 18pt)
   #table(
-    columns: (0.48fr, 0.72fr, 1.8fr),
-    inset: (y: 0.52em, x: 0.45em),
+    columns: (0.48fr, 0.65fr, 1.87fr),
+    inset: (y: 0.48em, x: 0.45em),
     align: (center + horizon, left + horizon, left + horizon),
     table.header([キー], [機能], [発表中の活用場面]),
-    [B / W], [黒画面・白画面], [質疑や口頭補足時に投影を隠し、視線を話者へ戻す],
-    [F], [画面固定], [投影中のスライドを止めたまま、手元だけで他ページを確認],
-    [L], [レーザー], [解像度の異なる聴衆画面へ正規化座標で赤点を同期],
-    [D / H / C], [5 色ペンと描線], [赤青黄緑白で書き込み、H で一時非表示、C で消去],
-    [S / \[ \]], [スポットライト], [周辺を暗くして図表を強調し、ホイールや \[ \] で半径調整],
+    [B / . / W], [黒・白画面], [質疑時に投影を隠し、リモコン操作にも対応],
+    [F], [画面固定], [投影中のスライドを止めたまま手元だけ先送り],
+    [L / D / S], [強調ツール], [3 色レーザー・5 色ペン（H 非表示 / C 消去）・スポット],
+    [Z / 0], [部分拡大], [カーソル中心に最大 4 倍まで高精細拡大し図表を強調],
+    [Q], [QR 投影], [配布資料やリポジトリ URL をオフライン QR で即時投影],
   )
 
-  #v(0.45em)
-  - *誤リロード防止*: 本番中のタブ閉じや F5 更新を警告ダイアログで抑止
+  #v(0.4em)
+  - *誤操作ガード*: 本番中のタブ閉じ・F5 更新・アプリ終了を確認ダイアログで抑止
+  #speaker-note(
+    target: 40,
+    "### 機能 3：強調ツールとステージ制御（2:35 - 3:15）\n\n- 3 つ目は、本番中の説明を助けるステージ制御と強調ツールです。\n- `B` / `.` の黒画面や `W` の白画面、`F` の画面固定に加え、`L` の 3 色レーザー、`D` の 5 色ペン、`S` のスポットライトを使えます。\n- さらに `Z` キーで数式や図表を最大 4 倍まで鮮明に拡大でき、質疑応答では `Q` キーからオフライン生成した QR コードを即座に投影できます。",
+  )
 ]
 
-// ===== Slide 7: 機能 4 リハーサル分析 =====
+// ===== Slide 7: 機能 4 タイマー・チャイムとリハーサル分析 =====
 #slide[
-  #slide_header("機能 4: リハーサル分析（R キー）")
-  #v(0.3em)
+  #slide_header("機能 4: タイマー・チャイムとリハーサル分析")
+  #v(0.25em)
 
-  練習時の滞在時間を自動で記録し、本番の時間配分へ反映できる。
-  #v(0.6em)
+  発表時間と警告残りの 2 項目設定で、本番のペースと振り返りを一貫管理できる。
+  #v(0.55em)
 
-  - 全スライドの実測滞在時間・訪問回数・目標差分を一覧化
-  - 計測した実測値を目標秒数へ#box[ワンクリック]で一括反映
-  - 計測結果を Markdown・CSV レポートとして出力
+  - 学会形式のチャイム SE（1 鈴・2 鈴・3 鈴）をタイマー連動または手動で鳴動
+  - 同一論理スライド内のサブスライド移動ではスライドタイマーを継続計測
+  - R キーで全スライドの実測滞在時間・訪問回数・目標差分を一覧化（論理合算対応）
+  - 実測値を目標秒数へ#box[ワンクリック]で一括反映し、Markdown・CSV レポートを出力
+  #speaker-note(
+    target: 35,
+    "### 機能 4：タイマー・チャイムとリハーサル分析（3:15 - 3:50）\n\n- 4 つ目は、タイマー・チャイム機能と `R` キーのリハーサル分析です。\n- 発表時間と警告残りの 2 項目でシンプルに設定でき、必要に応じて学会形式の 1・2・3 鈴チャイムを鳴らせます。\n- サブスライド間はタイマーを継続しつつ、練習後は `R` キーで論理スライド合算の滞在時間を確認し、実測値をそのまま次回の目標秒数へ反映できます。",
+  )
 ]
 
-// ===== Slide 8: 機能 5 Watch 連動と多様な PDF 対応 =====
+// ===== Slide 8: 機能 5 Typst ライブコンパイルと多様な PDF 対応 =====
 #slide[
-  #slide_header("機能 5: Watch 自動更新と多様な PDF 対応")
-  #v(0.3em)
+  #slide_header("機能 5: Typst ライブコンパイルと多様な PDF 対応")
+  #v(0.25em)
 
-  コンパイル環境やスライド作成ツールを問わず、そのまま本番運用できる。
-  #v(0.6em)
+  制作中のライブ更新から本番の多様なレイアウトまでシームレスに扱える。
+  #v(0.55em)
 
-  - typst watch の出力変化を検知し、現在のページと#box[状態]を保ったまま自動更新
-  - Touying などの横長分割 PDF（縦横比 2.4 超）を自動で検出
-  - 縦型やサイズ混在の PDF も歪みなく描画#box[領域]へ収めて表示
+  - Tauri 版で .typ ファイルを直接監視コンパイルし、埋め込みノートも自動追従
+  - *Live Compile Guard*: 構文エラー時も直前の正常状態（PDF・描線）を維持
+  - Web 版は Watch PDF で再コンパイルを検知し、ページと状態を保って再読込
+  - Touying などの横長分割 PDF 自動検出や、縦型・サイズ混在 PDF にも歪みなく対応
+  #speaker-note(
+    target: 40,
+    "### 機能 5：Typst ライブコンパイルと多様な PDF 対応（3:50 - 4:30）\n\n- 5 つ目は、Tauri デスクトップ版の `.typ` 直接コンパイルと多様な PDF 対応です。\n- Live Compile Guard により、執筆中に構文エラーが起きても聴衆画面や手元のページ・描線は壊れず、診断ドロワーだけにエラーが表示されます。\n- Web 版でも Watch PDF による自動更新が使え、Touying の横長分割 PDF やサイズ混在 PDF も自動で最適化します。",
+  )
 ]
 
 // ===== Slide 9: まとめ =====
 #slide[
   #slide_header("まとめ: Typst と汎用 PDF の発表体験を 1 つに")
 
-  - PDF と発表原稿をローカルで統合し、*発表中の視線分散と操作ミスを解消*
-  - 2 画面同期・強調ツール・誤リロード防止・リハーサル分析を一貫提供
-  - Web ブラウザ即試用、オフライン PWA、デスクトップ版を用意
+  - 単一 .typ 原稿から汎用 PDF までローカル完結で統合し、*発表中の視線分散を解消*
+  - 2 画面同期・拡大・QR・チャイム・自動見積もり・リハーサル分析を一貫提供
+  - Web ブラウザ即試用、オフライン PWA、Tauri デスクトップ版を用意
 
-  #v(1.8em)
+  #v(1.6em)
   #align(center)[
     #text(size: 1.3em, weight: "bold")[ご清聴ありがとうございました]
     #v(0.4em)
-    お手元のスライド PDF をドロップしてすぐにお試しいただけます
+    お手元のスライド PDF または .typ ファイルを読み込んですぐにお試しいただけます
   ]
+  #speaker-note(
+    target: 30,
+    "### まとめ（4:30 - 5:00）\n\n- 最後にまとめです。Typst Presenter は、単一 `.typ` 原稿や汎用 PDF、発表原稿、タイマー、強調ツールをローカルの 1 画面へ統合しました。\n- 2 画面同期・ズーム・QR 投影・自動時間見積もり・リハーサル分析を一貫して提供し、Web・PWA・デスクトップ版で動作します。\n- ぜひお手元の PDF や `.typ` ファイルを読み込んで操作感をお試しください。ご清聴ありがとうございました。",
+  )
 ]

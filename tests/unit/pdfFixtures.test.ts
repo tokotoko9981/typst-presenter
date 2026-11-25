@@ -55,6 +55,26 @@ describe('Real Typst PDF Fixtures Integration (pdfjs-dist/legacy)', () => {
       expect(flattenedTitles.some((n) => n.title.includes('機能 5') && n.pageNumber === 8)).toBe(true);
       expect(flattenedTitles.some((n) => n.title.includes('まとめ') && n.pageNumber === 9)).toBe(true);
 
+      // Verify embedded notes, targets, and QR config inside public/sample-deck.pdf
+      expect(Object.keys(meta.extractedNotes).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+      expect(meta.extractedNotes[1]).toContain('オープニング');
+      expect(meta.extractedSlideTargets).toEqual({
+        1: 20,
+        2: 30,
+        3: 35,
+        4: 35,
+        5: 35,
+        6: 40,
+        7: 35,
+        8: 40,
+        9: 30,
+      });
+      expect(meta.extractedPdfpcConfig?.durationMinutes).toBe(5);
+      expect(meta.extractedPdfpcConfig?.lastMinutes).toBe(1);
+      expect(meta.extractedPdfpcConfig?.qrUrl).toBe(
+        'https://github.com/tokotoko9981/typst-presenter',
+      );
+
       // Verify sample-notes.md covers all 9 slides
       const notesMd = readFileSync(notesPath, 'utf8');
       for (let slide = 1; slide <= meta.numPages; slide += 1) {

@@ -110,6 +110,10 @@ export function usePresenterShortcuts({
         return;
       }
 
+      if (active instanceof HTMLElement && active.getAttribute('role') === 'separator') {
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
       }

@@ -9,3 +9,20 @@ body,
   margin: 0;
   overscroll-behavior-x: none;
 }
+
+.presenter-split-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .presenter-split-layout {
+    grid-template-columns:
+      minmax(320px, var(--presenter-left-fr, 58fr))
+      10px
+      minmax(410px, var(--presenter-right-fr, 42fr));
+    column-gap: 0;
+    row-gap: 0;
+  }
+}

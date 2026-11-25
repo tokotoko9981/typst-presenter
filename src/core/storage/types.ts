@@ -51,4 +51,5 @@ export interface PresenterPrefs {
   chimeVolume?: number;
   audienceProgressBar?: boolean;
   shareNotesByPageLabel?: boolean;
+  paneSplitRatio?: number;
 }

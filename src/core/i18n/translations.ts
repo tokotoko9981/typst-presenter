@@ -312,6 +312,8 @@ export interface TranslationDict {
   closeGuardKeepPresenting: string;
   closeGuardForceExit: string;
   formatBulletTypstSingle: string;
+  paneSplitHandleAria: string;
+  paneSplitHandleTitle: string;
 }
 
 export const TRANSLATIONS: Record<Locale, TranslationDict> = {
@@ -620,6 +622,8 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     closeGuardForceExit: 'Disable Guard & Exit',
     formatBulletTypstSingle:
       'Single .typ file: use typst/presenter-notes.typ (#speaker-note / #presenter-config) or Polylux/Touying <pdfpc>.',
+    paneSplitHandleAria: 'Resize presenter panes',
+    paneSplitHandleTitle: 'Drag to resize panes (double-click to reset)',
   },
 
   ja: {
@@ -927,5 +931,7 @@ export const TRANSLATIONS: Record<Locale, TranslationDict> = {
     closeGuardForceExit: 'ガードを解除して終了',
     formatBulletTypstSingle:
       '単一 .typ 原稿: typst/presenter-notes.typ（#speaker-note / #presenter-config）または Polylux/Touying の <pdfpc> に対応。',
+    paneSplitHandleAria: 'スライドとノート領域の幅を調整',
+    paneSplitHandleTitle: 'ドラッグで幅を調整（ダブルクリックで初期比率にリセット）',
   },
 };

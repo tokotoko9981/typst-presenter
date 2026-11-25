@@ -73,6 +73,17 @@ import {
   isSameLogicalSlide,
   resolveNoteForPage,
 } from '../../core/notes/logicalSlides.ts';
+import {
+  clampPaneSplitRatio,
+  computeSplitRatioFromPointer,
+  DEFAULT_PANE_SPLIT_RATIO,
+  formatSplitFractions,
+  getEffectiveSplitBounds,
+  MAX_PANE_SPLIT_RATIO,
+  MIN_PANE_SPLIT_RATIO,
+  PANE_SPLIT_STEP,
+  stepPaneSplitRatio,
+} from '../../core/layout/paneSplit.ts';
 import type { DeckNotesBundle } from '../../core/notes/types.ts';
 import { PdfEngine } from '../../core/pdf/PdfEngine.ts';
 import type { CropMode, LoadedDeckMeta, OutlineNode } from '../../core/pdf/types.ts';
@@ -216,6 +227,9 @@ export function PresenterConsole() {
   const laserMenuBtnRef = useRef<HTMLButtonElement | null>(null);
   const laserPopoverRef = useRef<HTMLDivElement | null>(null);
   const lastStageHoverRef = useRef<NormalizedPoint | null>(null);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const paneSplitRatioRef = useRef<number>(DEFAULT_PANE_SPLIT_RATIO);
+  const splitDragCleanupRef = useRef<(() => void) | null>(null);
 
   if (!engineRef.current) {
     engineRef.current = new PdfEngine();
@@ -324,6 +338,9 @@ export function PresenterConsole() {
   const [activeModal, setActiveModal] = useState<PresenterModalKind>('none');
   const [helpInitialTab, setHelpInitialTab] = useState<HelpModalTab>('shortcuts');
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
+  const [paneSplitRatio, setPaneSplitRatio] = useState<number>(DEFAULT_PANE_SPLIT_RATIO);
+  const [isDraggingSplit, setIsDraggingSplit] = useState<boolean>(false);
+  paneSplitRatioRef.current = paneSplitRatio;
 
   useEffect(() => {
     if (!exportMenuOpen) return;
@@ -621,6 +638,11 @@ export function PresenterConsole() {
       setChimeVolume(clampChimeVolume(prefs.chimeVolume ?? DEFAULT_PREFS.chimeVolume ?? 0.7));
       setAudienceProgressBar(Boolean(prefs.audienceProgressBar));
       setShareNotesByPageLabel(prefs.shareNotesByPageLabel ?? true);
+      const restoredSplitRatio = clampPaneSplitRatio(
+        prefs.paneSplitRatio ?? DEFAULT_PANE_SPLIT_RATIO,
+      );
+      setPaneSplitRatio(restoredSplitRatio);
+      paneSplitRatioRef.current = restoredSplitRatio;
 
       const decks = await storageService.listDecks();
       if (!mounted) return;
@@ -1731,6 +1753,117 @@ export function PresenterConsole() {
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    return () => {
+      splitDragCleanupRef.current?.();
+      splitDragCleanupRef.current = null;
+    };
+  }, []);
+
+  const commitPaneSplitRatio = useCallback((nextRatio: number) => {
+    const clamped = clampPaneSplitRatio(nextRatio);
+    paneSplitRatioRef.current = clamped;
+    setPaneSplitRatio(clamped);
+    void storageService.savePrefs({ paneSplitRatio: clamped });
+  }, []);
+
+  const handleSplitPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    splitDragCleanupRef.current?.();
+
+    setIsDraggingSplit(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore pointer capture errors in synthetic test environments
+    }
+
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const updateFromClientX = (clientX: number) => {
+      const container = splitContainerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const next = computeSplitRatioFromPointer(clientX, rect.left, rect.width);
+      paneSplitRatioRef.current = next;
+      setPaneSplitRatio(next);
+    };
+
+    const onPointerMove = (ev: PointerEvent) => {
+      updateFromClientX(ev.clientX);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+      setIsDraggingSplit(false);
+      splitDragCleanupRef.current = null;
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      updateFromClientX(ev.clientX);
+      cleanup();
+      void storageService.savePrefs({ paneSplitRatio: paneSplitRatioRef.current });
+    };
+
+    splitDragCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  }, []);
+
+  const handleSplitDoubleClick = useCallback(() => {
+    commitPaneSplitRatio(DEFAULT_PANE_SPLIT_RATIO);
+  }, [commitPaneSplitRatio]);
+
+  const handleSplitKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const containerWidth = splitContainerRef.current?.getBoundingClientRect().width;
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          e.stopPropagation();
+          commitPaneSplitRatio(
+            stepPaneSplitRatio(paneSplitRatioRef.current, -PANE_SPLIT_STEP, containerWidth),
+          );
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          e.stopPropagation();
+          commitPaneSplitRatio(
+            stepPaneSplitRatio(paneSplitRatioRef.current, PANE_SPLIT_STEP, containerWidth),
+          );
+          break;
+        case 'Home':
+          e.preventDefault();
+          e.stopPropagation();
+          commitPaneSplitRatio(getEffectiveSplitBounds(containerWidth).min);
+          break;
+        case 'End':
+          e.preventDefault();
+          e.stopPropagation();
+          commitPaneSplitRatio(getEffectiveSplitBounds(containerWidth).max);
+          break;
+        case '0':
+        case 'Enter':
+          e.preventDefault();
+          e.stopPropagation();
+          commitPaneSplitRatio(DEFAULT_PANE_SPLIT_RATIO);
+          break;
+        default:
+          break;
+      }
+    },
+    [commitPaneSplitRatio],
+  );
 
   const handleAdjustPenSize = useCallback((delta: number) => {
     setPenWidth((prev) => {
@@ -3363,9 +3496,25 @@ export function PresenterConsole() {
           )}
         </div>
       ) : (
-        <div className="grid flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-12 lg:overflow-hidden">
-          {/* Left / Center: Current Slide Stage */}
-          <div className="relative flex min-h-[260px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm lg:col-span-7 lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+        (() => {
+          const { leftFr, rightFr, leftPercent } = formatSplitFractions(paneSplitRatio);
+          return (
+            <div
+              ref={splitContainerRef}
+              data-testid="pane-split-container"
+              style={
+                {
+                  '--presenter-left-fr': leftFr,
+                  '--presenter-right-fr': rightFr,
+                } as React.CSSProperties
+              }
+              className="presenter-split-layout flex-1 overflow-y-auto p-3 lg:overflow-hidden"
+            >
+              {/* Left / Center: Current Slide Stage */}
+              <div
+                data-testid="pane-left"
+                className="relative flex min-h-[260px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-slate-200/70 p-2 shadow-sm lg:min-h-0 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+              >
             {qrOverlay.visible && (
               <div
                 data-testid="presenter-qr-active-badge"
@@ -3479,8 +3628,36 @@ export function PresenterConsole() {
             />
           </div>
 
+          {/* Draggable Horizontal Pane Divider */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t.paneSplitHandleAria}
+            aria-valuemin={Math.round(MIN_PANE_SPLIT_RATIO * 100)}
+            aria-valuemax={Math.round(MAX_PANE_SPLIT_RATIO * 100)}
+            aria-valuenow={leftPercent}
+            title={t.paneSplitHandleTitle}
+            tabIndex={0}
+            data-testid="pane-split-handle"
+            data-split-ratio={paneSplitRatio.toFixed(2)}
+            onPointerDown={handleSplitPointerDown}
+            onDoubleClick={handleSplitDoubleClick}
+            onKeyDown={handleSplitKeyDown}
+            className={`group hidden cursor-col-resize select-none items-center justify-center focus:outline-none lg:flex ${
+              isDraggingSplit ? 'bg-blue-500/15' : ''
+            }`}
+          >
+            <div
+              className={`h-14 w-1 rounded-full transition-colors ${
+                isDraggingSplit
+                  ? 'bg-blue-500'
+                  : 'bg-slate-300 group-hover:bg-blue-400 group-focus-visible:bg-blue-500 dark:bg-slate-700 dark:group-hover:bg-blue-400'
+              }`}
+            />
+          </div>
+
           {/* Right Column: Next Preview + Timer + Speaker Notes */}
-          <div className="flex flex-col gap-3 lg:col-span-5 lg:overflow-hidden">
+          <div data-testid="pane-right" className="flex min-w-0 flex-col gap-3 lg:overflow-hidden">
             {/* Top row of right column: Next Slide Preview & Timer Panel */}
             <div className="grid grid-cols-12 gap-2.5">
               {/* Next Slide Preview */}
@@ -4045,6 +4222,8 @@ export function PresenterConsole() {
             </section>
           </div>
         </div>
+          );
+        })()
       )}
 
       {/* Slide Grid Modal (G) */}

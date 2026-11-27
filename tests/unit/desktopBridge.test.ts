@@ -6,6 +6,7 @@ import {
   isTauriRuntime,
   launchAudienceDisplay,
   listAvailableMonitors,
+  onOpenLaunchFile,
   selectDefaultAudienceMonitor,
   setAudienceWindowFullscreen,
   supportsWebScreenDetails,
@@ -419,5 +420,34 @@ describe('DesktopBridge', () => {
 
   it('returns null for getAudienceWindowFullscreen outside Tauri', async () => {
     expect(await getAudienceWindowFullscreen()).toBeNull();
+  });
+
+  it('subscribes to open-launch-file events in Tauri mode and cleans up', async () => {
+    const received: Array<{ path: string; kind: string }> = [];
+    const noopUnlisten = await onOpenLaunchFile((req) => received.push(req));
+    window.dispatchEvent(
+      new CustomEvent('tauri-mock:open-launch-file', {
+        detail: { path: 'ignored.typ', kind: 'typ' },
+      }),
+    );
+    expect(received).toEqual([]);
+    noopUnlisten();
+
+    getMutableWindow().__TAURI_INTERNALS__ = { invoke: vi.fn() };
+    const unlisten = await onOpenLaunchFile((req) => received.push(req));
+    window.dispatchEvent(
+      new CustomEvent('tauri-mock:open-launch-file', {
+        detail: { path: 'C:\\slides\\talk.typ', kind: 'typ' },
+      }),
+    );
+    expect(received).toEqual([{ path: 'C:\\slides\\talk.typ', kind: 'typ' }]);
+
+    unlisten();
+    window.dispatchEvent(
+      new CustomEvent('tauri-mock:open-launch-file', {
+        detail: { path: 'C:\\slides\\after.pdf', kind: 'pdf' },
+      }),
+    );
+    expect(received).toHaveLength(1);
   });
 });

@@ -20,15 +20,24 @@ impl LaunchFileState {
     }
 }
 
-pub fn parse_launch_file_from_args<I: IntoIterator<Item = String>>(
+pub fn parse_launch_file_from_args_with_cwd<I: IntoIterator<Item = String>>(
     args: I,
+    cwd: Option<&Path>,
 ) -> Option<LaunchFileRequest> {
     for arg in args {
         let trimmed = arg.trim();
         if trimmed.is_empty() || trimmed.starts_with('-') {
             continue;
         }
-        let candidate = Path::new(trimmed);
+        let raw_path = Path::new(trimmed);
+        let candidate = if raw_path.is_relative() {
+            match cwd {
+                Some(base) => base.join(raw_path),
+                None => raw_path.to_path_buf(),
+            }
+        } else {
+            raw_path.to_path_buf()
+        };
         let ext = candidate
             .extension()
             .and_then(|s| s.to_str())
@@ -41,13 +50,19 @@ pub fn parse_launch_file_from_args<I: IntoIterator<Item = String>>(
         if !candidate.is_file() {
             continue;
         }
-        let resolved = std::fs::canonicalize(candidate).unwrap_or_else(|_| candidate.to_path_buf());
+        let resolved = std::fs::canonicalize(&candidate).unwrap_or(candidate);
         return Some(LaunchFileRequest {
             path: resolved.to_string_lossy().to_string(),
             kind: kind.to_string(),
         });
     }
     None
+}
+
+pub fn parse_launch_file_from_args<I: IntoIterator<Item = String>>(
+    args: I,
+) -> Option<LaunchFileRequest> {
+    parse_launch_file_from_args_with_cwd(args, None)
 }
 
 pub fn is_allowed_markdown_write_path(path: &Path) -> bool {
@@ -147,6 +162,31 @@ mod tests {
         let req = parsed.unwrap();
         assert_eq!(req.kind, "typ");
         assert!(req.path.ends_with("talk.typ"));
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn resolves_relative_launch_file_against_cwd() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let tmp_dir = std::env::temp_dir().join(format!("tp-launch-cwd-test-{unique}"));
+        let sub_dir = tmp_dir.join("slides");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        let pdf_path = sub_dir.join("deck.pdf");
+        std::fs::write(&pdf_path, b"%PDF-1.4").unwrap();
+
+        let parsed = parse_launch_file_from_args_with_cwd(
+            vec!["slides/deck.pdf".to_string()],
+            Some(tmp_dir.as_path()),
+        );
+
+        assert!(parsed.is_some());
+        let req = parsed.unwrap();
+        assert_eq!(req.kind, "pdf");
+        assert!(req.path.ends_with("deck.pdf"));
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }

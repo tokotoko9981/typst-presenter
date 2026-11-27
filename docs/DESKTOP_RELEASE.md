@@ -84,21 +84,20 @@ npm run tauri:build
 
 | ファイル | 役割 |
 | --- | --- |
-| [`src-tauri/Cargo.toml`](../src-tauri/Cargo.toml) | クレート名 `typst-presenter`（`v0.4.1`, MIT）、ライブラリ `typst_presenter_lib`（`staticlib`, `cdylib`, `rlib`）、`tauri` v2・`serde`・`serde_json`・`tauri-build` v2 の依存定義 |
+| [`src-tauri/Cargo.toml`](../src-tauri/Cargo.toml) | クレート名 `typst-presenter`（`v0.5.0`, MIT）、ライブラリ `typst_presenter_lib`（`staticlib`, `cdylib`, `rlib`）、`tauri` v2・`tauri-plugin-dialog`・`tauri-plugin-single-instance`（デスクトップ）・`notify`・`serde`・`serde_json`・`tauri-build` v2 の依存定義 |
 | [`src-tauri/build.rs`](../src-tauri/build.rs) | `tauri_build::build()` によるビルド時スキーマ・リソース生成 |
-| [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json) | Tauri v2 設定。`productName: "Typst Presenter"`, `identifier: "io.github.tokotoko9981.typst-presenter"`, メインウィンドウ `main`（`1440x900`・最小 `1024x680`）、`frontendDist: "../dist"`、アイコン 5 ファイル構成 |
-| [`src-tauri/capabilities/default.json`](../src-tauri/capabilities/default.json) | `main` および `audience` ウィンドウに対する最小権限セット（`core:default`, `core:window:default`, `allow-set-fullscreen`, `allow-set-position`, `allow-set-size`, `allow-set-focus`, `allow-close`, `core:webview:allow-create-webview-window`） |
+| [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json) | Tauri v2 設定。`productName: "Typst Presenter"`, `identifier: "io.github.tokotoko9981.typst-presenter"`, メインウィンドウ `main`（`1440x900`・最小 `1024x680`）、`frontendDist: "../dist"`、アイコン 6 ファイル構成（`.icns` 含む）、Windows NSIS（`installMode: "currentUser"`, `English` / `Japanese`） |
+| [`src-tauri/capabilities/default.json`](../src-tauri/capabilities/default.json) | `main` および `audience` ウィンドウに対する最小権限セット（`core:default`, `core:window:default`, `allow-set-fullscreen`, `allow-set-position`, `allow-set-size`, `allow-set-focus`, `allow-close`, `core:webview:allow-create-webview-window`, `dialog:default`） |
 | [`src-tauri/src/main.rs`](../src-tauri/src/main.rs) | エントリーポイント。Release ビルド時の Windows コンソール非表示設定と `typst_presenter_lib::run()` 呼び出し |
-| [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) | Rust バックエンドコマンドの実装・登録 |
-| `src-tauri/icons/*` | `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png`, `icon.ico`（`npm run icons:generate` で生成） |
+| [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) | 単一インスタンス制御（`tauri-plugin-single-instance`）・`CloseGuardState`・`TypstWatchState`・`LaunchFileState` 初期化とコマンド登録 |
+| `src-tauri/src/commands/*` | `window.rs`（マルチディスプレイ・聴衆ウィンドウ制御・終了ガード）、`typst.rs`（OS 標準パス補完付き `typst` CLI 検出・監視・ライブコンパイル）、`files.rs`（起動引数・ローカル `.md`/バイナリ読み書き） |
+| `src-tauri/icons/*` | `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.icns`, `icon.png`, `icon.ico` |
 
-### `src-tauri/src/lib.rs` の登録コマンド
+### `src-tauri/src/commands/` の主な登録コマンド
 
-- `list_monitors`: `app.available_monitors()` と `app.primary_monitor()` を参照し、各ディスプレイの `index`, `name`, `x`, `y`, `width`, `height`, `scaleFactor`, `isPrimary` を返却します。
-- `open_audience_window`: セッション ID を含む `index.html#/audience?session=<id>` で `audience` ウィンドウを作成（既存時は再利用）します。`monitor_index` が省略された場合は非プライマリディスプレイ（存在しない場合はプライマリ）を自動選択し、物理座標・サイズを合わせたうえで `fullscreen` 設定とフォーカスを行います。
-- `close_audience_window`: 開いている `audience` ウィンドウを閉じます。
-- `set_audience_fullscreen`: `audience` ウィンドウのフルスクリーン状態を動的に切り替えます。
-- `get_platform_info`: `runtime`（`"tauri"`）、`os`、`arch`、`version` を返却します。
+- `window.rs`: `list_monitors`, `open_audience_window`, `close_audience_window`, `set_audience_fullscreen`, `is_audience_fullscreen`, `get_platform_info`, `set_close_guard`, `force_close_app`
+- `typst.rs`: `check_typst_cli`, `list_typst_fonts`, `pick_typst_file`, `start_typst_watch`, `stop_typst_watch`, `read_compiled_pdf`
+- `files.rs`: `get_launch_file`, `pick_notes_file`, `read_local_text_file`, `write_local_text_file`, `read_local_binary_file`
 
 ---
 

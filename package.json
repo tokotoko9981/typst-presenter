@@ -1,7 +1,7 @@
 {
   "name": "typst-presenter",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.5.0",
   "license": "MIT",
   "repository": "https://github.com/tokotoko9981/typst-presenter.git",
   "type": "module",

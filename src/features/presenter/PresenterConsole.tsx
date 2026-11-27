@@ -103,6 +103,7 @@ import {
   launchAudienceDisplay,
   listAvailableMonitors,
   onCloseGuardBlocked,
+  onOpenLaunchFile,
   pickNotesFilePath,
   readLocalBinaryFile,
   readLocalTextFile,
@@ -115,7 +116,7 @@ import {
   mergeEmbeddedWithTypstQuery,
   type TypstPdfpcQueryResult,
 } from '../../core/typst/typstPdfpcParser.ts';
-import type { MonitorDescriptor } from '../../core/platform/types.ts';
+import type { LaunchFileRequest, MonitorDescriptor } from '../../core/platform/types.ts';
 import {
   clampNoteFontSize,
   DEFAULT_PREFS,
@@ -1217,34 +1218,48 @@ export function PresenterConsole() {
     }
   };
 
+  const launchFileHandlerRef = useRef<(req: LaunchFileRequest) => Promise<void>>(async () => {});
+
+  launchFileHandlerRef.current = async (req: LaunchFileRequest) => {
+    if (req.kind === 'typ') {
+      await typstLive.startWatchPath(req.path);
+    } else if (req.kind === 'pdf') {
+      try {
+        const bytes = await readLocalBinaryFile(req.path);
+        const fileName = req.path.split(/[\\/]/).pop() || 'deck.pdf';
+        await ingestPdfBytes(bytes, fileName);
+      } catch (err) {
+        setErrorMessage(
+          `Error: Failed to open launch PDF "${req.path}" (${
+            err instanceof Error ? err.message : String(err)
+          }).`,
+        );
+      }
+    }
+  };
+
   useEffect(() => {
     if (!tauriMode) return;
     let active = true;
+    let unlisten: (() => void) | null = null;
     void (async () => {
+      unlisten = await onOpenLaunchFile((req) => {
+        if (active) {
+          void launchFileHandlerRef.current(req);
+        }
+      });
+      if (!active) {
+        unlisten();
+        return;
+      }
       const req = await getLaunchFile();
       if (!active || !req) return;
-      if (req.kind === 'typ') {
-        await typstLive.startWatchPath(req.path);
-      } else if (req.kind === 'pdf') {
-        try {
-          const bytes = await readLocalBinaryFile(req.path);
-          if (!active) return;
-          const fileName = req.path.split(/[\\/]/).pop() || 'deck.pdf';
-          await ingestPdfBytes(bytes, fileName);
-        } catch (err) {
-          if (!active) return;
-          setErrorMessage(
-            `Error: Failed to open launch PDF "${req.path}" (${
-              err instanceof Error ? err.message : String(err)
-            }).`,
-          );
-        }
-      }
+      await launchFileHandlerRef.current(req);
     })();
     return () => {
       active = false;
+      unlisten?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tauriMode]);
 
   const handleToggleWatchPdf = useCallback(async () => {

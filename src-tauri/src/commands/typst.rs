@@ -15,6 +15,11 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+#[cfg(windows)]
+const TYPST_EXE_NAME: &str = "typst.exe";
+#[cfg(not(windows))]
+const TYPST_EXE_NAME: &str = "typst";
+
 const WATCHED_EXTENSIONS: &[&str] = &[
     "typ", "bib", "yml", "yaml", "json", "csv", "toml", "png", "jpg", "jpeg", "svg",
 ];
@@ -58,7 +63,7 @@ pub struct TypstWatchState {
     pub build_counter: Arc<AtomicU64>,
 }
 
-fn create_hidden_command(program: &str) -> Command {
+fn create_hidden_command(program: &std::ffi::OsStr) -> Command {
     let mut cmd = Command::new(program);
     #[cfg(windows)]
     {
@@ -67,21 +72,82 @@ fn create_hidden_command(program: &str) -> Command {
     cmd
 }
 
-fn resolve_typst_executable_path() -> Option<String> {
-    #[cfg(windows)]
-    let probe = "where";
-    #[cfg(not(windows))]
-    let probe = "which";
-
-    let out = create_hidden_command(probe).arg("typst").output().ok()?;
-    if !out.status.success() {
-        return None;
+pub fn resolve_typst_in_dirs(dirs: &[PathBuf], exe_name: &str) -> Option<PathBuf> {
+    for dir in dirs {
+        let candidate = dir.join(exe_name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
     }
-    String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(str::trim)
-        .find(|line| !line.is_empty())
-        .map(ToString::to_string)
+    None
+}
+
+fn push_unique_dir(dirs: &mut Vec<PathBuf>, dir: PathBuf) {
+    if !dir.as_os_str().is_empty() && !dirs.iter().any(|existing| existing == &dir) {
+        dirs.push(dir);
+    }
+}
+
+fn default_typst_search_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(path_var) = std::env::var_os("PATH") {
+        for entry in std::env::split_paths(&path_var) {
+            push_unique_dir(&mut dirs, entry);
+        }
+    }
+    if let Some(cargo_home) = std::env::var_os("CARGO_HOME") {
+        push_unique_dir(&mut dirs, PathBuf::from(cargo_home).join("bin"));
+    }
+
+    #[cfg(windows)]
+    {
+        if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
+            let base = PathBuf::from(local_app_data);
+            push_unique_dir(&mut dirs, base.join("Microsoft").join("WinGet").join("Links"));
+            push_unique_dir(&mut dirs, base.join("Programs").join("Typst"));
+        }
+        if let Some(user_profile) = std::env::var_os("USERPROFILE") {
+            let home = PathBuf::from(user_profile);
+            push_unique_dir(&mut dirs, home.join(".cargo").join("bin"));
+            push_unique_dir(&mut dirs, home.join("scoop").join("shims"));
+        }
+        push_unique_dir(&mut dirs, PathBuf::from(r"C:\Program Files\Typst"));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        push_unique_dir(&mut dirs, PathBuf::from("/opt/homebrew/bin"));
+        push_unique_dir(&mut dirs, PathBuf::from("/usr/local/bin"));
+        if let Some(home) = std::env::var_os("HOME") {
+            let home_dir = PathBuf::from(home);
+            push_unique_dir(&mut dirs, home_dir.join(".cargo").join("bin"));
+            push_unique_dir(&mut dirs, home_dir.join(".local").join("bin"));
+        }
+        push_unique_dir(&mut dirs, PathBuf::from("/opt/local/bin"));
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(home) = std::env::var_os("HOME") {
+            let home_dir = PathBuf::from(home);
+            push_unique_dir(&mut dirs, home_dir.join(".cargo").join("bin"));
+            push_unique_dir(&mut dirs, home_dir.join(".local").join("bin"));
+        }
+        push_unique_dir(&mut dirs, PathBuf::from("/usr/local/bin"));
+        push_unique_dir(&mut dirs, PathBuf::from("/usr/bin"));
+        push_unique_dir(&mut dirs, PathBuf::from("/snap/bin"));
+    }
+
+    dirs
+}
+
+fn create_typst_command() -> (Command, Option<String>) {
+    if let Some(path) = resolve_typst_in_dirs(&default_typst_search_dirs(), TYPST_EXE_NAME) {
+        let resolved_str = path.to_string_lossy().to_string();
+        let cmd = create_hidden_command(path.as_os_str());
+        return (cmd, Some(resolved_str));
+    }
+    (create_hidden_command(std::ffi::OsStr::new("typst")), None)
 }
 
 pub fn is_relevant_watch_path(path: &Path) -> bool {
@@ -145,7 +211,7 @@ pub fn compile_typst_blocking(
         std::process::id()
     ));
 
-    let mut compile_cmd = create_hidden_command("typst");
+    let (mut compile_cmd, _) = create_typst_command();
     compile_cmd
         .arg("compile")
         .arg("--diagnostic-format")
@@ -223,7 +289,7 @@ pub fn compile_typst_blocking(
     }
 
     // Best-effort `<pdfpc>` metadata query for Polylux/Touying compatibility (Appendix A Option 1).
-    let mut query_cmd = create_hidden_command("typst");
+    let (mut query_cmd, _) = create_typst_command();
     query_cmd
         .arg("query")
         .arg("--format")
@@ -272,15 +338,15 @@ fn stop_existing_watch(state: &TypstWatchState) {
 #[tauri::command]
 pub async fn check_typst_cli() -> Result<TypstCliStatus, String> {
     tauri::async_runtime::spawn_blocking(|| {
-        let out = create_hidden_command("typst").arg("--version").output();
+        let (mut cmd, resolved_path) = create_typst_command();
+        let out = cmd.arg("--version").output();
         match out {
             Ok(res) if res.status.success() => {
                 let version = String::from_utf8_lossy(&res.stdout).trim().to_string();
-                let path = resolve_typst_executable_path();
                 TypstCliStatus {
                     available: true,
                     version: if version.is_empty() { None } else { Some(version) },
-                    path,
+                    path: resolved_path,
                     error: None,
                 }
             }
@@ -305,7 +371,7 @@ pub async fn check_typst_cli() -> Result<TypstCliStatus, String> {
 #[tauri::command]
 pub async fn list_typst_fonts(font_paths: Option<Vec<String>>) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut cmd = create_hidden_command("typst");
+        let (mut cmd, _) = create_typst_command();
         cmd.arg("fonts");
         if let Some(paths) = font_paths {
             for dir in paths {
@@ -483,5 +549,41 @@ mod tests {
         assert!(!is_relevant_watch_path(Path::new("deck/.git/index")));
         assert!(!is_relevant_watch_path(Path::new("deck/node_modules/a.typ")));
         assert!(!is_relevant_watch_path(Path::new("deck/target/tmp.typ")));
+    }
+
+    #[test]
+    fn resolves_typst_binary_from_fallback_dir() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("tp-typst-resolve-{unique}"));
+        let first_dir = root.join("empty");
+        let second_dir = root.join("fallback");
+        std::fs::create_dir_all(&first_dir).unwrap();
+        std::fs::create_dir_all(&second_dir).unwrap();
+
+        let binary = second_dir.join(TYPST_EXE_NAME);
+        std::fs::write(&binary, b"stub").unwrap();
+
+        let resolved = resolve_typst_in_dirs(&[first_dir, second_dir], TYPST_EXE_NAME);
+        assert_eq!(resolved.as_deref(), Some(binary.as_path()));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn returns_none_when_typst_binary_missing() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let empty_dir = std::env::temp_dir().join(format!("tp-typst-missing-{unique}"));
+        std::fs::create_dir_all(&empty_dir).unwrap();
+
+        let resolved = resolve_typst_in_dirs(&[empty_dir.clone()], TYPST_EXE_NAME);
+        assert!(resolved.is_none());
+
+        let _ = std::fs::remove_dir_all(&empty_dir);
     }
 }

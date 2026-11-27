@@ -544,3 +544,7 @@ export function onTypstCompileResult(
 export function onCloseGuardBlocked(handler: () => void): Promise<() => void> {
   return subscribeTauriEvent<unknown>('close-guard-blocked', () => handler());
 }
+
+export function onOpenLaunchFile(handler: (payload: LaunchFileRequest) => void): Promise<() => void> {
+  return subscribeTauriEvent<LaunchFileRequest>('open-launch-file', handler);
+}

@@ -8,7 +8,31 @@ use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            let cwd_path = std::path::Path::new(&cwd);
+            let cwd_opt = if cwd.trim().is_empty() {
+                None
+            } else {
+                Some(cwd_path)
+            };
+            if let Some(req) = commands::files::parse_launch_file_from_args_with_cwd(
+                argv.into_iter().skip(1),
+                cwd_opt,
+            ) {
+                let _ = app.emit("open-launch-file", &req);
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         .manage(CloseGuardState::default())
         .manage(TypstWatchState::default())
